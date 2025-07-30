@@ -17,3 +17,9 @@ crash.log
 
 # files which contain public keys
 keys
+
+# terraform
+.terraform.lock.hcl
+terraform.tfstate*
+ .terraform
+
