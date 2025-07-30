@@ -16,4 +16,4 @@ crash.log
 *.box
 
 # files which contain public keys
-*.keys
+keys
