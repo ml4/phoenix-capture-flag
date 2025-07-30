@@ -16,6 +16,7 @@ source "amazon-ebs" "phoenix-capture-flag-ubuntu-amd64" {
   ami_virtualization_type   = "hvm"
   # ami_regions               = var.regions
   access_key                = var.aws_access_key_id
+  associate_public_ip_address = true
   aws_polling {
     delay_seconds           = 60
     max_attempts            = 200
@@ -35,14 +36,14 @@ source "amazon-ebs" "phoenix-capture-flag-ubuntu-amd64" {
   run_volume_tags = {
     Status                  = "packer-delete-me"
   }
-  secret_key                =  var.aws_secret_access_key
+  secret_key                = var.aws_secret_access_key
   snapshot_tags             = {
     OS_Version              = "Ubuntu"
     Release                 = "Latest"
     Base_AMI_ID             = "{{ .SourceAMI }}"
     Base_AMI_Name           = "{{ .SourceAMIName }}"
   }
-  source_ami                = "ami-0ff2217d2295191c9" # see README
+  source_ami                = var.ami #"ami-0ff2217d2295191c9" # see README
   skip_save_build_region    = false
   ssh_username              = "ubuntu"
   ssh_clear_authorized_keys = true
@@ -55,7 +56,8 @@ source "amazon-ebs" "phoenix-capture-flag-ubuntu-amd64" {
     Base_AMI_ID             = "{{ .SourceAMI }}"
     Base_AMI_Name           = "{{ .SourceAMIName }}"
   }
-  # token                     = var.aws_session_token
+  subnet_id                 = var.subnet_id
+  vpc_id                    = var.vpc_id
 }
 
 build {
@@ -67,13 +69,13 @@ build {
   ## move ubuntu ssh access into place
   #
   provisioner "file" {
-    destination = "/tmp/ml4"
     source      = "/Users/ml4/.ssh/ml4"
+    destination = "/tmp/ml4"
   }
 
   provisioner "file" {
-    destination = "/tmp/ml4.pub"
     source      = "/Users/ml4/.ssh/ml4.pub"
+    destination = "/tmp/ml4.pub"
   }
 
   provisioner "shell" {
@@ -81,5 +83,13 @@ build {
     inline          = ["mv -f /tmp/ml4* /home/ubuntu/.ssh"]
   }
 
+  provisioner "file" {
+    destination = "/tmp/flag"
+    source      = "flag"
+  }
 
+  provisioner "shell" {
+    execute_command  = "{{ .Vars }} sudo -S -E bash '{{ .Path }}'"
+    inline          = ["mv -f /tmp/flag /etc"]
+  }
 }
