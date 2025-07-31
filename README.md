@@ -8,6 +8,7 @@ The build adds a file called /etc/flag with contents instantiated in an environm
 ## Use
 - Create a directory called `keys` and put all public ssh keys in it called blah.pub
 - Set `AWS_DEFAULT_REGION`, `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`
+- Run `az login` and set `ARM_SUBSCRIPTION_ID`
 - Update the `flag` file - this is copied to `/etc` on the built image
 - Update the `phoenix-capture-flag.pkr.hcl` file changing the owner private ssh key used to do the default build
 ```shell
@@ -20,7 +21,9 @@ terraform init
 terraform plan
 terraform apply -auto-approve
 ```
-- This will output the subnet and VPC IDs. Instantiate `AWS_BUILD_SUBNET` and `AWS_BUILD_VPC` from this output
+- This will output:
+- - AWS: the subnet and VPC IDs. Instantiate `AWS_BUILD_SUBNET` and `AWS_BUILD_VPC` from this output
+- - Azure: the RG, VNET and Subnet IDs. Instantiate `AZURE_BUILD_RG`, `AZURE_BUILD_VNET` and `AZURE_BUILD_SUBNET`
 - Get the latest ubuntu build AMI reference from the AWS console or a CLI equivalent and instantiate `AWS_BUILD_AMI` with it
 - You should have six AWS environment variables instantiated before you run make.
 - Run `make` (or `make list` first to get an idea)

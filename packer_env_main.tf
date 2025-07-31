@@ -60,3 +60,45 @@ output "vpc_id" {
 output "subnet_id" {
   value = aws_subnet.public.id
 }
+
+# --------------------------
+# Azure equivalent resources
+# --------------------------
+
+provider "azurerm" {
+  features {}
+}
+
+# Resource group
+resource "azurerm_resource_group" "main" {
+  name     = "phoenix-ctf-rg"
+  location = "UK South"
+}
+
+# Virtual Network (VPC equivalent)
+resource "azurerm_virtual_network" "main" {
+  name                = "phoenix-vnet"
+  address_space       = ["10.1.0.0/16"]
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
+}
+
+# Subnet (Subnet equivalent)
+resource "azurerm_subnet" "public" {
+  name                 = "phoenix-subnet"
+  resource_group_name  = azurerm_resource_group.main.name
+  virtual_network_name = azurerm_virtual_network.main.name
+  address_prefixes     = ["10.1.1.0/24"]
+}
+
+output "azure_resource_group_name" {
+  value = azurerm_resource_group.main.name
+}
+
+output "azure_vnet_name" {
+  value = azurerm_virtual_network.main.name
+}
+
+output "azure_subnet_id" {
+  value = azurerm_subnet.public.id
+}
