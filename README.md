@@ -7,16 +7,23 @@ The build adds a file called /etc/flag with contents instantiated in an environm
 
 ## Use
 - Create a directory called `keys` and put all public ssh keys in it called blah.pub
-- Set AWS_DEFAULT_REGION, AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY
+- Set `AWS_DEFAULT_REGION`, `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`
 - Update the `flag` file - this is copied to `/etc` on the built image
-- Run this to get some latest AWS AMI marketplace base image IDs and pick one, then update the `phoenix-capture-flag.pkr.hcl` file
-```shell
-aws ec2 describe-images --owners 099720109477 --query "Images[*].[CreationDate,Name,ImageId]" --filters "Name=name,Values=ubuntu-minimal*24.04*" --region ${AWS_DEFAULT_REGION} --output table | sort -r | grep -Ev "^[-+]|DescribeImages" | head -3
-```
-- Update the `phoenix-capture-flag.pkr.hcl` file changing the owner private ssh key used to do the default build (the above SSH public keys will be added into the default user authorized_keys)
+- Update the `phoenix-capture-flag.pkr.hcl` file changing the owner private ssh key used to do the default build
 ```shell
 ssh_keypair_name          = "ml4"
 ssh_private_key_file      = "~/.ssh/ml4"
 ```
+- Run Terraform commands to setup the non-default VPC in the AWS account:
+```shell
+terraform init
+terraform plan
+terraform apply -auto-approve
+```
+- This will output the subnet and VPC IDs. Instantiate `AWS_BUILD_SUBNET` and `AWS_BUILD_VPC` from this output
+- Get the latest ubuntu build AMI reference from the AWS console or a CLI equivalent and instantiate `AWS_BUILD_AMI` with it
+- You should have six AWS environment variables instantiated before you run make.
+- Run `make` (or `make list` first to get an idea)
 
-(testing if ralph can commit)
+## Cleaning
+- If using an ephemeral environment that removes your CSP objects, run `make clean` to remove the Terraform state for that and start again.

@@ -115,7 +115,6 @@ function build {
 
   ## NOTE: IF READING THROUGH, GO TO PACKER CONFIG AND THEN COME BACK HERE TO CONTINUE
   #
-  draw_line cyan
   log "INFO" "${FUNCNAME[0]}" "${cyan}RUNNING PACKER${reset}"
   packer build -var=aws_access_key_id="${AWS_ACCESS_KEY_ID}" \
                -var=aws_secret_access_key="${AWS_SECRET_ACCESS_KEY}" \
