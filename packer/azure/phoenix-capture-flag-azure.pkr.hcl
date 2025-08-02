@@ -1,5 +1,3 @@
-
-
 packer {
   required_version = ">= 1.11.2"
   required_plugins {
@@ -20,6 +18,7 @@ source "azure-arm" "phoenix-capture-flag-ubuntu-amd64" {
   managed_image_resource_group_name = var.azure_resource_group
   location                          = "UK South"
   vm_size                           = "Standard_DS1_v2"
+  assign_public_ip                  = true
 
   # resource_group_name               = var.azure_resource_group
   virtual_network_name              = var.azure_vnet
