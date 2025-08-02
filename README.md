@@ -25,6 +25,15 @@ terraform apply -auto-approve
 - - AWS: the subnet and VPC IDs. Instantiate `AWS_BUILD_SUBNET` and `AWS_BUILD_VPC` from this output
 - - Azure: the RG, VNET and Subnet IDs. Instantiate `AZURE_BUILD_RG`, `AZURE_BUILD_VNET` and `AZURE_BUILD_SUBNET`
 - Get the latest ubuntu build AMI reference from the AWS console or a CLI equivalent and instantiate `AWS_BUILD_AMI` with it
+- - 
+```shell
+aws ec2 describe-images \
+  --owners 099720109477 \
+  --filters "Name=name,Values=ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*" \
+            "Name=state,Values=available" \
+  --query "Images | sort_by(@, &CreationDate)[-1].ImageId" \
+  --output text
+```
 - You should have six AWS environment variables instantiated before you run make.
 - Run `make` (or `make list` first to get an idea)
 

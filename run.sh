@@ -60,6 +60,24 @@ function check {
     log "ERROR" "${FUNCNAME[0]}" "AWS_BUILD_VPC is not set"
     exit 1
   fi
+
+  if [[ -z "${AZURE_BUILD_RG}" ]]
+  then
+    log "ERROR" "${FUNCNAME[0]}" "AZURE_BUILD_RG is not set"
+    exit 1
+  fi
+
+  if [[ -z "${AZURE_BUILD_VNET}" ]]
+  then
+    log "ERROR" "${FUNCNAME[0]}" "AZURE_BUILD_VNET is not set"
+    exit 1
+  fi
+
+  if [[ -z "${AZURE_BUILD_SUBNET}" ]]
+  then
+    log "ERROR" "${FUNCNAME[0]}" "AZURE_BUILD_SUBNET is not set"
+    exit 1
+  fi
 }
 
 ##################################################################################################################################################
@@ -116,6 +134,7 @@ function build {
   ## NOTE: IF READING THROUGH, GO TO PACKER CONFIG AND THEN COME BACK HERE TO CONTINUE
   #
   log "INFO" "${FUNCNAME[0]}" "${cyan}RUNNING PACKER${reset}"
+  packer init -upgrade packer/aws
   packer build -var=aws_access_key_id="${AWS_ACCESS_KEY_ID}" \
                -var=aws_secret_access_key="${AWS_SECRET_ACCESS_KEY}" \
                -var=aws_default_region="${AWS_DEFAULT_REGION}" \
@@ -123,7 +142,7 @@ function build {
                -var=subnet_id="${AWS_BUILD_SUBNET}" \
                -var=vpc_id="${AWS_BUILD_VPC}" \
                -timestamp-ui \
-               .
+               packer/aws
   rCode=${?}
   if [[ ${rCode} -gt 0 ]]
   then
@@ -131,6 +150,28 @@ function build {
     exit 1
   else
     log "INFO" "${FUNCNAME[0]}" "${green}Packer succeeded.${reset}"
+  fi
+}
+
+function build_azure {
+  log "INFO" "${FUNCNAME[0]}" "${cyan}RUNNING PACKER for Azure${reset}"
+  packer init -upgrade packer/azure
+  packer build -var=azure_resource_group="${AZURE_BUILD_RG}" \
+               -var=azure_vnet="${AZURE_BUILD_VNET}" \
+               -var=azure_subnet="${AZURE_BUILD_SUBNET}" \
+               -var=arm_client_id="${ARM_CLIENT_ID}" \
+               -var=arm_client_secret="${ARM_CLIENT_SECRET}" \
+               -var=arm_subscription_id="${ARM_SUBSCRIPTION_ID}" \
+               -var=arm_tenant_id="${ARM_TENANT_ID}" \
+               -timestamp-ui \
+               packer/azure
+  rCode=${?}
+  if [[ ${rCode} -gt 0 ]]
+  then
+    log "ERROR" "${FUNCNAME[0]}" "${red}Packer Azure build failed.${reset}"
+    exit 1
+  else
+    log "INFO" "${FUNCNAME[0]}" "${green}Packer Azure build succeeded.${reset}"
   fi
 }
 
@@ -172,15 +213,8 @@ function main {
 
   ## packer build will use ssh keys in each region for build testing
   #
-  log "INFO" "${FUNCNAME[0]}" "packer init -upgrade phoenix-capture-flag.pkr.hcl"
-  packer init -upgrade phoenix-capture-flag.pkr.hcl
-  rCode=${?}
-  if [[ ${rCode} -gt 0 ]]
-  then
-    log "WARN" "${FUNCNAME[0]}" "Failed: packer init -upgrade phoenix-capture-flag.pkr.hcl"
-  fi
-
   build
+  build_azure
 
   log "INFO" "${FUNCNAME[0]}" "All done"
 }

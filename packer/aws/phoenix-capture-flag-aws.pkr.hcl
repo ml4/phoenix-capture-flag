@@ -7,6 +7,10 @@ packer {
       source                = "github.com/hashicorp/amazon"
       version               = "~> 1"
     }
+    azure = {
+      source  = "github.com/hashicorp/azure"
+      version = "~> 2"
+    }
   }
 }
 
@@ -61,13 +65,12 @@ source "amazon-ebs" "phoenix-capture-flag-ubuntu-amd64" {
 }
 
 build {
-  description = "Phoenix image for capture-the-flag packer ubuntu24 stock marketplace image"
+  name        = "aws-build"
+  description = "Phoenix AWS image for capture-the-flag Ubuntu 24"
   sources = [
     "source.amazon-ebs.phoenix-capture-flag-ubuntu-amd64"
   ]
 
-  ## move ubuntu ssh access into place
-  #
   provisioner "file" {
     source      = "/Users/ralph.richards/.ssh/id_rsa"
     destination = "/tmp/id_rsa"
