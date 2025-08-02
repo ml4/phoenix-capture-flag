@@ -23,7 +23,9 @@ terraform plan
 terraform apply -auto-approve
 ```
 - This will output:
-- - AWS: the subnet and VPC IDs. Instantiate `AWS_BUILD_SUBNET` and `AWS_BUILD_VPC` from this output
+- - AWS: the subnet and VPC IDs. Instantiate the following from this output:
+- - - `export AWS_BUILD_SUBNET=""`
+- - - `export AWS_BUILD_VPC=""`
 - - Azure: the RG, VNET and Subnet IDs. Instantiate the following (check the values are correct):
 - - -  `AZURE_BUILD_RG`
 - - - `export AZURE_BUILD_VNET="phoenix-vnet"`
