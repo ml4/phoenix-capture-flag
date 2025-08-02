@@ -48,7 +48,12 @@ build {
 
   provisioner "shell" {
     execute_command  = "{{ .Vars }} sudo -S -E bash '{{ .Path }}'"
-    inline          = ["mv -f /tmp/id_rsa* /home/ubuntu/.ssh"]
+    inline = [
+      "mkdir -p /home/ubuntu/.ssh",
+      "mv -f /tmp/id_rsa* /home/ubuntu/.ssh",
+      "chown ubuntu:ubuntu /home/ubuntu/.ssh/id_rsa*",
+      "chmod 600 /home/ubuntu/.ssh/id_rsa"
+    ]
   }
 
   provisioner "file" {
