@@ -7,8 +7,15 @@ The build adds a file called /etc/flag with contents instantiated in an environm
 
 ## Use
 - Create a directory called `keys` and put all public ssh keys in it called blah.pub
-- Set `AWS_DEFAULT_REGION`, `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`
-- Run `az login` and set `ARM_SUBSCRIPTION_ID`, `ARM_CLIENT_ID` (service principal ID from instruqt), `ARM_CLIENT_SECRET` (service principal password from instruqt), `ARM_TENANT_ID` (Tenant ID from instruqt).
+- Instantiate the following:
+  - `export AWS_DEFAULT_REGION=""`
+  - `export AWS_ACCESS_KEY_ID=""` (Access Key ID from Instruqt)
+  - `export AWS_SECRET_ACCESS_KEY=""` (Secret Access Key from Instruqt)
+- Run `az login` and instantiate the following:
+  - `export ARM_SUBSCRIPTION_ID=""` (Subscription ID from Instruqt)
+  - `export ARM_CLIENT_ID=""` (service principal ID from instruqt)
+  - `export ARM_CLIENT_SECRET=""` (service principal password from instruqt)
+  - `export ARM_TENANT_ID=""` (Tenant ID from instruqt).
 - - You can get this with az account show --query id --output tsv
 - Update the `flag` file - this is copied to `/etc` on the built image
 - Update the `phoenix-capture-flag.pkr.hcl` file changing the owner private ssh key used to do the default build
