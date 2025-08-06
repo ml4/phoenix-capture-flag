@@ -7,6 +7,10 @@ packer {
       source                = "github.com/hashicorp/amazon"
       version               = "~> 1"
     }
+    azure = {
+      source  = "github.com/hashicorp/azure"
+      version = "~> 2"
+    }
   }
 }
 
@@ -47,8 +51,8 @@ source "amazon-ebs" "phoenix-capture-flag-ubuntu-amd64" {
   skip_save_build_region    = false
   ssh_username              = "ubuntu"
   ssh_clear_authorized_keys = true
-  ssh_keypair_name          = "ml4"
-  ssh_private_key_file      = "~/.ssh/ml4"
+  ssh_keypair_name          = "id_rsa"
+  ssh_private_key_file      = "/Users/ralph.richards/.ssh/id_rsa"
   ssh_agent_auth            = false
   tags = {
     OS_Version              = "Ubuntu"
@@ -61,26 +65,25 @@ source "amazon-ebs" "phoenix-capture-flag-ubuntu-amd64" {
 }
 
 build {
-  description = "Phoenix image for capture-the-flag packer ubuntu24 stock marketplace image"
+  name        = "aws-build"
+  description = "Phoenix AWS image for capture-the-flag Ubuntu 24"
   sources = [
     "source.amazon-ebs.phoenix-capture-flag-ubuntu-amd64"
   ]
 
-  ## move ubuntu ssh access into place
-  #
   provisioner "file" {
-    source      = "/Users/ml4/.ssh/ml4"
-    destination = "/tmp/ml4"
+    source      = "/Users/ralph.richards/.ssh/id_rsa"
+    destination = "/tmp/id_rsa"
   }
 
   provisioner "file" {
-    source      = "/Users/ml4/.ssh/ml4.pub"
-    destination = "/tmp/ml4.pub"
+    source      = "/Users/ralph.richards/.ssh/id_rsa.pub"
+    destination = "/tmp/id_rsa.pub"
   }
 
   provisioner "shell" {
     execute_command  = "{{ .Vars }} sudo -S -E bash '{{ .Path }}'"
-    inline          = ["mv -f /tmp/ml4* /home/ubuntu/.ssh"]
+    inline          = ["mv -f /tmp/id_rsa* /home/ubuntu/.ssh"]
   }
 
   provisioner "file" {
