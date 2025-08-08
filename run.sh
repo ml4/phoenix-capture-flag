@@ -5,14 +5,12 @@
 #
 ## this script should cater for the necessary complexity required for this repo.
 #
-###################################################################################################################
-
-readonly SCRIPT_NAME="$(basename ${0})"
+##################################################################################################################################################
 
 ##################################################################################################################################################
 ## setup
 #
-function setup {
+function setup_environment_for_cloud_build {
   if [[ -z "$(command -v packer)" ]]
   then
     log "ERROR" "${FUNCNAME[0]}" "Install Packer first"
@@ -89,7 +87,8 @@ function setup {
   #
   if [[ -z "${BUILD_SSH_KEY}" ]]
   then
-    read -sp "Enter BUILD_SSH_KEY (SSH private key name to use for build): " build_ssh_key
+    echo
+    read -p "Enter BUILD_SSH_KEY (SSH private key name to use for build): " build_ssh_key
     export BUILD_SSH_KEY=${build_ssh_key}
   fi
 
@@ -109,7 +108,7 @@ function setup {
     #
     if [[ -d .terraform || -r .terraform.lock.hcl || -r terraform.tfstate ]]
     then
-      log "WARN" "${FUNCNAME[0]}" "Terraform objects in this directory exit already."
+      log "WARN" "${FUNCNAME[0]}" "Terraform objects in this directory exist already."
       read -p "Enter ^C to exit to handle manually or return to continue with existing state files. " continue_selected
     fi
     #
@@ -123,7 +122,6 @@ function setup {
       log "ERROR" "${FUNCNAME[0]}" "Return status ${rCode} for command terraform init -upgrade"
       popd >/dev/null
       rm -rf ${tmpdir}
-      playOracOff
       exit ${rCode}
     fi
 
@@ -212,12 +210,6 @@ function setup {
         log "INFO" "${FUNCNAME[0]}" "AZURE_BUILD_SUBNET: ${AZURE_BUILD_SUBNET}"
     fi
 
-    ## solicit username and update the paths in the packer build file
-    #
-    this_user=$(id -p | head -1 | awk '{print $NF}')
-    cat packer/azure/phoenix-capture-flag-azure.pkr.hcl.tmpl | sed  "s/%%USERNAME%%/${this_user}/g" > packer/azure/phoenix-capture-flag-azure.pkr.hcl
-    cat packer/aws/phoenix-capture-flag-aws.pkr.hcl.tmpl     | sed  "s/%%USERNAME%%/${this_user}/g" > packer/aws/phoenix-capture-flag-aws.pkr.hcl
-
     ## send SSH public keys to AWS. Public keys are called <github handle>.pub
     #
     for key_file in `/bin/ls -1 keys/*.pub`
@@ -240,7 +232,6 @@ function setup {
   else
     log "INFO" "${FUNCNAME[0]}" "OK skipping Terraform deploy, going straight to Packer tasks"
   fi
-
 }
 
 ##################################################################################################################################################
@@ -273,7 +264,7 @@ function log {
   local -r func="${2}"
   local -r message="${3}"
   local -r timestamp=$(date +"%Y-%m-%d %H:%M:%S %Z")
-  >&2 echo -e "${cyan}${timestamp}${reset} [${COL}${level}${reset}] [${cyan}${SCRIPT_NAME}${reset}:${yellow}${func}${reset}] ${message}"
+  >&2 echo -e "${cyan}${timestamp}${reset} [${COL}${level}${reset}] [${cyan}run.sh${reset}:${yellow}${func}${reset}] ${message}"
 }
 
 #####  #    # # #      #####
@@ -286,7 +277,7 @@ function log {
 ##################################################################################################################################################
 ## build
 #
-function build {
+function build_cloud_images {
   #####  #    # #    #    #####    ##    ####  #    # ###### #####
   #    # #    # ##   #    #    #  #  #  #    # #   #  #      #    #
   #    # #    # # #  #    #    # #    # #      ####   #####  #    #
@@ -296,8 +287,13 @@ function build {
 
   ## NOTE: IF READING THROUGH, GO TO PACKER CONFIG AND THEN COME BACK HERE TO CONTINUE
   #
-  log "INFO" "${FUNCNAME[0]}" "${cyan}RUNNING PACKER${reset}"
-  packer init -upgrade packer/aws
+  pushd packer &>/dev/null
+  log "INFO" "${FUNCNAME[0]}" "${cyan}RUNNING PACKER IN ${PWD}${reset}"
+  if [[ ! -r "phoenix-capture-flag.pkr.hcl" ]]
+  then
+    log "ERROR" "${FUNCNAME[0]}" "No Packer manifest created. Bye."
+  fi
+  packer init -upgrade . && \
   packer build -var=aws_access_key_id="${AWS_ACCESS_KEY_ID}" \
                -var=aws_secret_access_key="${AWS_SECRET_ACCESS_KEY}" \
                -var=aws_default_region="${AWS_DEFAULT_REGION}" \
@@ -313,15 +309,15 @@ function build {
                -var=arm_subscription_id="${ARM_SUBSCRIPTION_ID}" \
                -var=arm_tenant_id="${ARM_TENANT_ID}" \
                -timestamp-ui \
-               packer/aws
+               .
   rCode=${?}
   if [[ ${rCode} -gt 0 ]]
   then
     log "ERROR" "${FUNCNAME[0]}" "${red}Packer failed.${reset}"
-    exit ${rCode}
   else
     log "INFO" "${FUNCNAME[0]}" "${green}Packer succeeded.${reset}"
   fi
+  popd &>/dev/null
 }
 
 # function build_azure {
@@ -358,20 +354,24 @@ function build {
 #
 function main {
   export region=${AWS_DEFAULT_REGION}
-  setup
+  setup_environment_for_cloud_build
+
+  ## solicit username and update the paths in the packer build file
   #
-  ## might need an explicit ssh key upload to Azure subscription??
+  this_user=$(id -p | head -1 | awk '{print $NF}')
+  pushd packer &>/dev/null
+  log  "INFO" "${FUNCNAME[0]}" "sed \"s/%%USERNAME%%/${this_user}/g\" phoenix-capture-flag.pkr.hcl.tmpl > phoenix-capture-flag.pkr.hcl"
+  sed "s/%%USERNAME%%/${this_user}/g" phoenix-capture-flag.pkr.hcl.tmpl > phoenix-capture-flag.pkr.hcl
+  if [[ ! -f "phoenix-capture-flag.pkr.hcl" ]]
+  then
+    log "ERROR" "${FUNCNAME[0]}" "Packer manifest has not been generated. Bye."
+  fi
+  popd &>/dev/null
+  echo sleeping 60
+  sleep 60
 
-
-  ## packer build will use ssh keys in each region for build testing
-  #
-  build
-  build_azure
-
-  rm -f packer/azure/phoenix-capture-flag-azure.pkr.hcl
-  rm -f packer/aws/phoenix-capture-flag-aws.pkr.hcl
-
-  log "INFO" "${FUNCNAME[0]}" "All done"
+  build_cloud_images && rm -f packer/phoenix-capture-flag.pkr.hcl
+  log "INFO" "${FUNCNAME[0]}" "Finished"
 }
 
 main "$@"
