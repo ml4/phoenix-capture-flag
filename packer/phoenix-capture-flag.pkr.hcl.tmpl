@@ -52,7 +52,7 @@ source "amazon-ebs" "phoenix-capture-flag-ubuntu-amd64" {
   ssh_username              = "ubuntu"
   ssh_clear_authorized_keys = true
   ssh_keypair_name          = "id_rsa"
-  ssh_private_key_file      = "/Users/ralph.richards/.ssh/id_rsa"
+  ssh_private_key_file      = "/Users/%%USERNAME%%/.ssh/${var.build_ssh_key}"
   ssh_agent_auth            = false
   tags = {
     OS_Version              = "Ubuntu"
@@ -64,20 +64,42 @@ source "amazon-ebs" "phoenix-capture-flag-ubuntu-amd64" {
   vpc_id                    = var.vpc_id
 }
 
+source "azure-arm" "phoenix-capture-flag-ubuntu-amd64" {
+  subscription_id                   = var.arm_subscription_id
+  client_id                         = var.arm_client_id
+  client_secret                     = var.arm_client_secret
+  tenant_id                         = var.arm_tenant_id
+
+  managed_image_name                = "phoenix-capture-flag"
+  managed_image_resource_group_name = var.azure_resource_group
+  location                          = "UK South"
+  vm_size                           = "Standard_DS1_v2"
+
+  # resource_group_name               = var.azure_resource_group
+  # virtual_network_name              = var.azure_vnet
+  # virtual_network_subnet_name       = var.azure_subnet
+
+  os_type         = "Linux"
+  image_publisher = "Canonical"
+  image_offer     = "0001-com-ubuntu-server-jammy"
+  image_sku       = "22_04-lts"
+}
+
 build {
-  name        = "aws-build"
+  name        = "multi-cloud-build"
   description = "Phoenix AWS image for capture-the-flag Ubuntu 24"
   sources = [
-    "source.amazon-ebs.phoenix-capture-flag-ubuntu-amd64"
+    "source.amazon-ebs.phoenix-capture-flag-ubuntu-amd64",
+    "source.azure-arm.phoenix-capture-flag-ubuntu-amd64"
   ]
 
   provisioner "file" {
-    source      = "/Users/ralph.richards/.ssh/id_rsa"
+    source      = "/Users/%%USERNAME%%/.ssh/${var.build_ssh_key}"
     destination = "/tmp/id_rsa"
   }
 
   provisioner "file" {
-    source      = "/Users/ralph.richards/.ssh/id_rsa.pub"
+    source      = "/Users/%%USERNAME%%/.ssh/${var.build_ssh_key}.pub"
     destination = "/tmp/id_rsa.pub"
   }
 
