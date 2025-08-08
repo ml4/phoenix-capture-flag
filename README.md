@@ -5,6 +5,8 @@ Initial build focuses on AWS and Azure.
 
 The build adds a file called /etc/flag with contents instantiated in an environment variable per the build.
 
+Generally not shared with customers in a gameathon style as they might edit their own phoenix packer build :D
+
 ## Use
 - Create a directory called `keys` and put all public ssh keys in it called blah.pub
 - Instantiate the following:
@@ -38,7 +40,7 @@ terraform apply -auto-approve
 - - - `export AZURE_BUILD_VNET="phoenix-vnet"`
 - - - `export AZURE_BUILD_SUBNET="phoenix-subnet"`
 - Get the latest ubuntu build AMI reference from the AWS console or a CLI equivalent and instantiate `AWS_BUILD_AMI` with it
-- - 
+- -
 ```shell
 aws ec2 describe-images \
   --owners 099720109477 \
