@@ -367,10 +367,8 @@ function main {
     log "ERROR" "${FUNCNAME[0]}" "Packer manifest has not been generated. Bye."
   fi
   popd &>/dev/null
-  echo sleeping 60
-  sleep 60
 
-  build_cloud_images && rm -f packer/phoenix-capture-flag.pkr.hcl
+  build_cloud_images #&& rm -f packer/phoenix-capture-flag.pkr.hcl
   log "INFO" "${FUNCNAME[0]}" "Finished"
 }
 

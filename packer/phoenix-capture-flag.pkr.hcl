@@ -85,12 +85,12 @@ build {
   ]
 
   provisioner "file" {
-    source      = "/Users/%%USERNAME%%/.ssh/${var.build_ssh_key}"
+    source      = "/Users/ml4/.ssh/${var.build_ssh_key}"
     destination = "/tmp/id_rsa"
   }
 
   provisioner "file" {
-    source      = "/Users/%%USERNAME%%/.ssh/${var.build_ssh_key}.pub"
+    source      = "/Users/ml4/.ssh/${var.build_ssh_key}.pub"
     destination = "/tmp/id_rsa.pub"
   }
 
