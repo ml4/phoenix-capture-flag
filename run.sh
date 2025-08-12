@@ -43,17 +43,17 @@ function setup_environment_for_cloud_build {
     export AWS_SECRET_ACCESS_KEY=${aws_secret_access_key}
   fi
 
-  if [[ -z "${AWS_BUILD_AMI}" ]]
+  if [[ -z "${AWS_BASE_IMAGE_AMI}" ]]
   then
     echo
     echo "Getting Ubuntu 22 ami ID"
     aws_u22_marketplace_id=$(aws ec2 describe-images --owners 099720109477 --filters "Name=name,Values=ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*" "Name=state,Values=available" --query "Images | sort_by(@, &CreationDate)[-1].ImageId" --output text)
-    read -p "Enter AWS_BUILD_AMI (${aws_u22_marketplace_id}): " aws_build_ami
-    if [[ -z "${aws_build_ami}" ]]
+    read -p "Enter AWS_BASE_IMAGE_AMI (${aws_u22_marketplace_id}): " aws_base_image_ami
+    if [[ -z "${aws_base_image_ami}" ]]
     then
-      export aws_build_ami=${aws_u22_marketplace_id}
+      export aws_base_image_ami=${aws_u22_marketplace_id}
     fi
-    export AWS_BUILD_AMI=${aws_build_ami}
+    export AWS_BASE_IMAGE_AMI=${aws_base_image_ami}
   fi
 
   ## Azure creds from the manual run of the instruqt ephemeral no-default-vpc CSP account setup
@@ -88,7 +88,7 @@ function setup_environment_for_cloud_build {
   if [[ -z "${BUILD_SSH_KEY}" ]]
   then
     echo
-    read -p "Enter BUILD_SSH_KEY (SSH private key name to use for build): " build_ssh_key
+    read -p "Enter BUILD_SSH_KEY (filename of SSH private key name in ~/.ssh to use for build): " build_ssh_key
     export BUILD_SSH_KEY=${build_ssh_key}
   fi
 
@@ -297,7 +297,7 @@ function build_cloud_images {
   packer build -var=aws_access_key_id="${AWS_ACCESS_KEY_ID}" \
                -var=aws_secret_access_key="${AWS_SECRET_ACCESS_KEY}" \
                -var=aws_default_region="${AWS_DEFAULT_REGION}" \
-               -var=ami="${AWS_BUILD_AMI}" \
+               -var=ami="${AWS_BASE_IMAGE_AMI}" \
                -var=subnet_id="${AWS_BUILD_SUBNET}" \
                -var=vpc_id="${AWS_BUILD_VPC}" \
                -var=build_ssh_key="${BUILD_SSH_KEY}" \

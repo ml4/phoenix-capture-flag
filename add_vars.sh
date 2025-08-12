@@ -10,6 +10,9 @@ fi
 
 file_path=${1}
 
+echo "Paste these onto your command line:"
+echo
+
 ## Extract and echo AWS credentials
 #
 aws_access_key_id=$(grep -A1 '^Access Key ID:' "${file_path}" | tail -n1)
