@@ -14,13 +14,11 @@ function setup_environment_for_cloud_build {
   if [[ -z "$(command -v packer)" ]]
   then
     log "ERROR" "${FUNCNAME[0]}" "Install Packer first"
-    exit 1
   fi
 
   if [[ -z "$(command -v terraform)" ]]
   then
     log "ERROR" "${FUNCNAME[0]}" "Install Terraform first"
-    exit 1
   fi
 
   ## AWS creds from the manual run of the instruqt ephemeral no-default-vpc CSP account setup
@@ -46,7 +44,7 @@ function setup_environment_for_cloud_build {
   if [[ -z "${AWS_BASE_IMAGE_AMI}" ]]
   then
     echo
-    echo "Getting Ubuntu 22 ami ID"
+    echo "Getting Ubuntu ami ID"
     aws_u22_marketplace_id=$(aws ec2 describe-images --owners 099720109477 --filters "Name=name,Values=ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*" "Name=state,Values=available" --query "Images | sort_by(@, &CreationDate)[-1].ImageId" --output text)
     read -p "Enter AWS_BASE_IMAGE_AMI (${aws_u22_marketplace_id}): " aws_base_image_ami
     if [[ -z "${aws_base_image_ami}" ]]
@@ -122,7 +120,6 @@ function setup_environment_for_cloud_build {
       log "ERROR" "${FUNCNAME[0]}" "Return status ${rCode} for command terraform init -upgrade"
       popd >/dev/null
       rm -rf ${tmpdir}
-      exit ${rCode}
     fi
 
     log "INFO" "${FUNCNAME[0]}" "Running terraform plan -detailed-exitcode"
@@ -134,7 +131,6 @@ function setup_environment_for_cloud_build {
     elif [[ ${rCode} == 1 ]]
     then
       log "ERROR" "${FUNCNAME[0]}" "Terraform plan errored"
-      exit ${rCode}
     fi
 
     log "INFO" "${FUNCNAME[0]}" "Running terraform apply -auto-approve"
@@ -143,95 +139,90 @@ function setup_environment_for_cloud_build {
     if [[ ${rCode} > 0 ]]
     then
       log "ERROR" "${FUNCNAME[0]}" "Return code [${rCode}] from terraform apply -auto-approve > 0"
-      exit ${rCode}
     fi
     #
     ## at this point, we have a non-default VPC deployed in an ephemeral AWS VPC and the equivalent VNet in an ephemeral Azure subscription
 
-    ## setup for Packer run
-    #
-    if [[ -z "${AWS_BUILD_SUBNET}" ]]
-    then
-      export AWS_BUILD_SUBNET=$(terraform output | grep ^subnet_id | awk '{print $NF}' | tr -d \")
-      if [[ -z "${AWS_BUILD_SUBNET}" ]]
-      then
-        log "ERROR" "${FUNCNAME[0]}" "Return code [${rCode}] from terraform output | grep ^subnet_id | awk '{print $NF}' | tr -d \" > 0"
-        exit ${rCode}
-      fi
-    else
-        log "INFO" "${FUNCNAME[0]}" "AWS_BUILD_SUBNET: ${AWS_BUILD_SUBNET}"
-    fi
-
-    if [[ -z "${AWS_BUILD_VPC}" ]]
-    then
-      export AWS_BUILD_VPC=$(terraform output | grep ^vpc_id | awk '{print $NF}' | tr -d \")
-      if [[ -z "${AWS_BUILD_VPC}" ]]
-      then
-        log "ERROR" "${FUNCNAME[0]}" "Return code [${rCode}] from terraform output | grep ^vpc_id | awk '{print $NF}' | tr -d \""
-        exit ${rCode}
-      fi
-    else
-        log "INFO" "${FUNCNAME[0]}" "AWS_BUILD_VPC: ${AWS_BUILD_VPC}"
-    fi
-
-    if [[ -z "${AZURE_BUILD_RG}" ]]
-    then
-      export AZURE_BUILD_RG=$(terraform output | grep ^azure_resource_group_name | awk '{print $NF}' | tr -d \")
-      if [[ -z "${AZURE_BUILD_RG}" ]]
-      then
-        log "ERROR" "${FUNCNAME[0]}" "Return code [${rCode}] from terraform output | grep ^azure_resource_group_name | awk '{print $NF}' | tr -d \""
-        exit ${rCode}
-      fi
-    else
-        log "INFO" "${FUNCNAME[0]}" "AZURE_BUILD_RG: ${AZURE_BUILD_RG}"
-    fi
-
-    if [[ -z "${AZURE_BUILD_VNET}" ]]
-    then
-      export AZURE_BUILD_VNET=$(terraform output | grep ^azure_vnet_name | awk '{print $NF}' | tr -d \")
-      if [[ -z "${AZURE_BUILD_VNET}" ]]
-      then
-        log "ERROR" "${FUNCNAME[0]}" "Return code [${rCode}] from terraform output | grep ^azure_vnet_name | awk '{print $NF}' | tr -d \""
-        exit ${rCode}
-      fi
-    else
-        log "INFO" "${FUNCNAME[0]}" "AZURE_BUILD_VNET: ${AZURE_BUILD_VNET}"
-    fi
-
-    if [[ -z "${AZURE_BUILD_SUBNET}" ]]
-    then
-      export AZURE_BUILD_SUBNET=$(terraform output | grep ^azure_subnet_id | awk '{print $NF}' | tr -d \")
-      if [[ -z "${AZURE_BUILD_SUBNET}" ]]
-      then
-        log "ERROR" "${FUNCNAME[0]}" "Return code [${rCode}] from terraform output | grep ^azure_subnet_id | awk '{print $NF}' | tr -d \""
-        exit ${rCode}
-      fi
-    else
-        log "INFO" "${FUNCNAME[0]}" "AZURE_BUILD_SUBNET: ${AZURE_BUILD_SUBNET}"
-    fi
-
-    ## send SSH public keys to AWS. Public keys are called <github handle>.pub
-    #
-    for key_file in `/bin/ls -1 keys/*.pub`
-    do
-      key_name=$(echo ${key_file} | sed 's/keys\///' | sed 's/\.pub//')
-      log "INFO" "${FUNCNAME[0]}" "Clearing ssh ${key_name} key in build region ${purple}${AWS_DEFAULT_REGION}${reset}"
-      aws ec2 delete-key-pair --region ${region} --key-name ${key_name} >/dev/null 2>&1   # ignore failures mostly associated with key pair absence
-      sleep 2 # for the cloud
-      log "INFO" "${FUNCNAME[0]}" "Uploading ${key_name} key pair to build region ${purple}${region}${reset}"
-      aws ec2 import-key-pair --region ${region} --key-name ${key_name} --public-key-material fileb://keys/${key_name}.pub
-      rCode=${?}
-      if [[ ${rCode} -gt 0 ]]
-      then
-        log "ERROR" "${FUNCNAME[0]}" "Failed: aws ec2 import-key-pair --region ${region} --key-name ${key_name} --public-key-material fileb://keys/${key_name}.pub"
-        exit ${rCode}
-      fi
-    done
-    #
-    ## NOT done atm for Azure - not needed?
   else
     log "INFO" "${FUNCNAME[0]}" "OK skipping Terraform deploy, going straight to Packer tasks"
+
   fi
+
+  ## setup for Packer run
+  #
+  if [[ -z "${AWS_BUILD_SUBNET}" ]]
+  then
+    export AWS_BUILD_SUBNET=$(terraform output | grep ^subnet_id | awk '{print $NF}' | tr -d \")
+    if [[ -z "${AWS_BUILD_SUBNET}" ]]
+    then
+      log "ERROR" "${FUNCNAME[0]}" "Return code [${rCode}] from terraform output | grep ^subnet_id | awk '{print $NF}' | tr -d \" > 0"
+    fi
+  else
+      log "INFO" "${FUNCNAME[0]}" "AWS_BUILD_SUBNET: ${AWS_BUILD_SUBNET}"
+  fi
+
+  if [[ -z "${AWS_BUILD_VPC}" ]]
+  then
+    export AWS_BUILD_VPC=$(terraform output | grep ^vpc_id | awk '{print $NF}' | tr -d \")
+    if [[ -z "${AWS_BUILD_VPC}" ]]
+    then
+      log "ERROR" "${FUNCNAME[0]}" "Return code [${rCode}] from terraform output | grep ^vpc_id | awk '{print $NF}' | tr -d \""
+    fi
+  else
+      log "INFO" "${FUNCNAME[0]}" "AWS_BUILD_VPC: ${AWS_BUILD_VPC}"
+  fi
+
+  if [[ -z "${ARM_BUILD_RG}" ]]
+  then
+    export ARM_BUILD_RG=$(terraform output | grep ^azure_resource_group_name | awk '{print $NF}' | tr -d \")
+    if [[ -z "${ARM_BUILD_RG}" ]]
+    then
+      log "ERROR" "${FUNCNAME[0]}" "Return code [${rCode}] from terraform output | grep ^azure_resource_group_name | awk '{print $NF}' | tr -d \""
+    fi
+  else
+      log "INFO" "${FUNCNAME[0]}" "ARM_BUILD_RG: ${ARM_BUILD_RG}"
+  fi
+
+  if [[ -z "${ARM_BUILD_VNET}" ]]
+  then
+    export ARM_BUILD_VNET=$(terraform output | grep ^azure_vnet_name | awk '{print $NF}' | tr -d \")
+    if [[ -z "${ARM_BUILD_VNET}" ]]
+    then
+      log "ERROR" "${FUNCNAME[0]}" "Return code [${rCode}] from terraform output | grep ^azure_vnet_name | awk '{print $NF}' | tr -d \""
+    fi
+  else
+      log "INFO" "${FUNCNAME[0]}" "ARM_BUILD_VNET: ${ARM_BUILD_VNET}"
+  fi
+
+  if [[ -z "${ARM_BUILD_SUBNET}" ]]
+  then
+    export ARM_BUILD_SUBNET=$(terraform output | grep ^azure_subnet_id | awk '{print $NF}' | tr -d \")
+    if [[ -z "${ARM_BUILD_SUBNET}" ]]
+    then
+      log "ERROR" "${FUNCNAME[0]}" "Return code [${rCode}] from terraform output | grep ^azure_subnet_id | awk '{print $NF}' | tr -d \""
+    fi
+  else
+      log "INFO" "${FUNCNAME[0]}" "ARM_BUILD_SUBNET: ${ARM_BUILD_SUBNET}"
+  fi
+
+  ## send SSH public keys to AWS. Public keys are called <github handle>.pub
+  #
+  for key_file in `/bin/ls -1 keys/*.pub`
+  do
+    key_name=$(echo ${key_file} | sed 's/keys\///' | sed 's/\.pub//')
+    log "INFO" "${FUNCNAME[0]}" "Clearing ssh ${key_name} key in build region ${purple}${AWS_DEFAULT_REGION}${reset}"
+    aws ec2 delete-key-pair --region ${region} --key-name ${key_name} >/dev/null 2>&1   # ignore failures mostly associated with key pair absence
+    sleep 2 # for the cloud
+    log "INFO" "${FUNCNAME[0]}" "Uploading ${key_name} key pair to build region ${purple}${region}${reset}"
+    aws ec2 import-key-pair --region ${region} --key-name ${key_name} --public-key-material fileb://keys/${key_name}.pub
+    rCode=${?}
+    if [[ ${rCode} -gt 0 ]]
+    then
+      log "ERROR" "${FUNCNAME[0]}" "Failed: aws ec2 import-key-pair --region ${region} --key-name ${key_name} --public-key-material fileb://keys/${key_name}.pub"
+    fi
+  done
+  #
+  ## NOT done atm for Azure - not needed?
 }
 
 ##################################################################################################################################################
@@ -301,9 +292,9 @@ function build_cloud_images {
                -var=subnet_id="${AWS_BUILD_SUBNET}" \
                -var=vpc_id="${AWS_BUILD_VPC}" \
                -var=build_ssh_key="${BUILD_SSH_KEY}" \
-               -var=azure_resource_group="${AZURE_BUILD_RG}" \
-               -var=azure_vnet="${AZURE_BUILD_VNET}" \
-               -var=azure_subnet="${AZURE_BUILD_SUBNET}" \
+               -var=azure_resource_group="${ARM_BUILD_RG}" \
+               -var=azure_vnet="${ARM_BUILD_VNET}" \
+               -var=azure_subnet="${ARM_BUILD_SUBNET}" \
                -var=arm_client_id="${ARM_CLIENT_ID}" \
                -var=arm_client_secret="${ARM_CLIENT_SECRET}" \
                -var=arm_subscription_id="${ARM_SUBSCRIPTION_ID}" \
@@ -319,29 +310,6 @@ function build_cloud_images {
   fi
   popd &>/dev/null
 }
-
-# function build_azure {
-#   log "INFO" "${FUNCNAME[0]}" "${cyan}RUNNING PACKER for Azure${reset}"
-#   packer init -upgrade packer/azure
-#   packer build -var=azure_resource_group="${AZURE_BUILD_RG}" \
-#                -var=azure_vnet="${AZURE_BUILD_VNET}" \
-#                -var=azure_subnet="${AZURE_BUILD_SUBNET}" \
-#                -var=arm_client_id="${ARM_CLIENT_ID}" \
-#                -var=arm_client_secret="${ARM_CLIENT_SECRET}" \
-#                -var=arm_subscription_id="${ARM_SUBSCRIPTION_ID}" \
-#                -var=arm_tenant_id="${ARM_TENANT_ID}" \
-#                -var=build_ssh_key="${BUILD_SSH_KEY}" \
-#                -timestamp-ui \
-#                packer/azure
-#   rCode=${?}
-#   if [[ ${rCode} -gt 0 ]]
-#   then
-#     log "ERROR" "${FUNCNAME[0]}" "${red}Packer Azure build failed.${reset}"
-#     exit ${rCode}
-#   else
-#     log "INFO" "${FUNCNAME[0]}" "${green}Packer Azure build succeeded.${reset}"
-#   fi
-# }
 
 #    #   ##   # #    #
 ##  ##  #  #  # ##   #
@@ -370,6 +338,7 @@ function main {
 
   build_cloud_images #&& rm -f packer/phoenix-capture-flag.pkr.hcl
   log "INFO" "${FUNCNAME[0]}" "Finished"
+  unset AWS_BUILD_VPC AWS_BUILD_SUBNET ARM_BUILD_VNET ARM_BUILD_SUBNET
 }
 
 main "$@"

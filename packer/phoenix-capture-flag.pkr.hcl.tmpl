@@ -16,7 +16,7 @@ packer {
 
 source "amazon-ebs" "phoenix-capture-flag-ubuntu-amd64" {
   ami_name                  = "phoenix-capture-flag"
-  ami_description           = "phoenix-capture-flag: minimal Ubuntu 24 image."
+  ami_description           = "phoenix-capture-flag: minimal Ubuntu 22 image (because Azure has insufficient caught up)."
   ami_virtualization_type   = "hvm"
   access_key                = var.aws_access_key_id
   associate_public_ip_address = true
@@ -46,7 +46,7 @@ source "amazon-ebs" "phoenix-capture-flag-ubuntu-amd64" {
     Base_AMI_ID             = "{{ .SourceAMI }}"
     Base_AMI_Name           = "{{ .SourceAMIName }}"
   }
-  source_ami                = var.ami #"ami-0ff2217d2295191c9" # see README
+  source_ami                = var.ami # see README
   skip_save_build_region    = false
   ssh_username              = "ubuntu"
   ssh_clear_authorized_keys = false
@@ -94,9 +94,16 @@ build {
     destination = "/tmp/id_rsa.pub"
   }
 
-  provisioner "shell" {
-    execute_command  = "{{ .Vars }} sudo -S -E bash '{{ .Path }}'"
-    inline          = ["mkdir -m 0700 -p /home/ubuntu/.ssh && mv -f /tmp/id_rsa* /home/ubuntu/.ssh"]
+  ## add attendee ssh public keys to target ~/.ssh/authorized_keys file
+  #
+  provisioner "file" {
+    source      = "../keys"
+    destination = "/tmp/keys"
+  }
+
+  provisioner "file" {
+    destination = "/tmp/multi-cloud-setup.sh"
+    source      = "multi-cloud-setup.sh"
   }
 
   provisioner "file" {
@@ -107,5 +114,10 @@ build {
   provisioner "shell" {
     execute_command  = "{{ .Vars }} sudo -S -E bash '{{ .Path }}'"
     inline          = ["mv -f /tmp/flag /etc"]
+  }
+
+  provisioner "shell" {
+    execute_command  = "{{ .Vars }} sudo -S -E bash '{{ .Path }}'"
+    inline          = ["/tmp/multi-cloud-setup.sh"]
   }
 }
