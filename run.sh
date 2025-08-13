@@ -207,18 +207,49 @@ function setup_environment_for_cloud_build {
 
   ## send SSH public keys to AWS. Public keys are called <github handle>.pub
   #
+  log "INFO" "${FUNCNAME[0]}" "Logging into Azure"
+  az login --service-principal --username ${ARM_CLIENT_ID} --password ${ARM_CLIENT_SECRET} --tenant ${ARM_TENANT_ID} >/dev/null
+  rCode=${?}
+  if [[ ${rCode} > 0 ]]
+  then
+    log "INFO" "${FUNCNAME[0]}" "Logging into Azure FAILED:"
+    az login --service-principal --username ${ARM_CLIENT_ID} --password ${ARM_CLIENT_SECRET} --tenant ${ARM_TENANT_ID} >/dev/null
+    read -p "Pausing in case you want to exit here. Enter to continue" NULL
+  else
+    az account set --subscription "${ARM_SUBSCRIPTION_ID}"
+    rCode=${?}
+    if [[ ${rCode} > 0 ]]
+    then
+      log "INFO" "${FUNCNAME[0]}" "Setting Azure subscription FAILED:"
+      az account set --subscription "${ARM_SUBSCRIPTION_ID}"
+      read -p "Pausing in case you want to exit here. Enter to continue" NULL
+    fi
+  fi
+  #
+  ## assuming logging into Azure for script use OK
+
   for key_file in `/bin/ls -1 keys/*.pub`
   do
     key_name=$(echo ${key_file} | sed 's/keys\///' | sed 's/\.pub//')
-    log "INFO" "${FUNCNAME[0]}" "Clearing ssh ${key_name} key in build region ${purple}${AWS_DEFAULT_REGION}${reset}"
+    log "INFO" "${FUNCNAME[0]}" "AWS: Clearing ssh ${key_name} key in build region ${purple}${AWS_DEFAULT_REGION}${reset}"
     aws ec2 delete-key-pair --region ${region} --key-name ${key_name} >/dev/null 2>&1   # ignore failures mostly associated with key pair absence
     sleep 2 # for the cloud
-    log "INFO" "${FUNCNAME[0]}" "Uploading ${key_name} key pair to build region ${purple}${region}${reset}"
+    log "INFO" "${FUNCNAME[0]}" "AWS: Uploading ${key_name} key pair to build region ${purple}${region}${reset}"
     aws ec2 import-key-pair --region ${region} --key-name ${key_name} --public-key-material fileb://keys/${key_name}.pub
     rCode=${?}
     if [[ ${rCode} -gt 0 ]]
     then
       log "ERROR" "${FUNCNAME[0]}" "Failed: aws ec2 import-key-pair --region ${region} --key-name ${key_name} --public-key-material fileb://keys/${key_name}.pub"
+    fi
+
+    log "INFO" "${FUNCNAME[0]}" "Azure: Clearing ssh ${key_name} key in build region ${purple}uksouth${reset}"
+    az sshkey delete --name ${key_name} --resource-group phoenix-ctf-rg --yes
+    log "INFO" "${FUNCNAME[0]}" "Azure: Uploading ${key_name} key pair to build region ${purple}${region}${reset}"
+    az sshkey create --name ${key_name} --resource-group phoenix-ctf-rg --location uksouth --public-key "@keys/${key_name}.pub"
+    rCode=${?}
+    if [[ ${rCode} -gt 0 ]]
+    then
+      log "ERROR" "${FUNCNAME[0]}" "Failed: az sshkey create --name ${key_name} --resource-group phoenix-ctf-rg --location uksouth --public-key \"@keys/${key_name}.pub\""
     fi
   done
   #
