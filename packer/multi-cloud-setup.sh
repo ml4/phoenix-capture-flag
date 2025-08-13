@@ -34,16 +34,6 @@ then
     echo "INFO: CMD mv -f /tmp/id_rsa* /home/ubuntu/.ssh OK"
   fi
 
-  mkdir -p /home/ubuntu/.ssh
-  rCode=${?}
-  if [[ ${rCode} > 0 ]]
-  then
-    echo "ERROR: CMD mkdir -p /home/ubuntu/.ssh FAILED [exit ${rCode}]"
-    exit ${rCode}
-  else
-    echo "INFO: CMD mkdir -p /home/ubuntu/.ssh OK"
-  fi
-
   touch /home/ubuntu/.ssh/authorized_keys
   rCode=${?}
   if [[ ${rCode} > 0 ]]
@@ -173,9 +163,9 @@ then
   rCode=${?}
   if [[ ${rCode} > 0 ]]
   then
-    echo "ERROR: CMD chown -R azureuser: /home/azureuser/.ssh FAILED [exit ${rCode}]"
+    echo "ERROR: CMD chown -R azureuser:azureuser /home/azureuser/.ssh FAILED [exit ${rCode}]"
     exit ${rCode}
   else
-    echo "INFO: CMD chown -R azureuser: /home/azureuser/.ssh OK"
+    echo "INFO: CMD chown -R azureuser:azureuser /home/azureuser/.ssh OK"
   fi
 fi

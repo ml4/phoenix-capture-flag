@@ -16,7 +16,7 @@ packer {
 
 source "amazon-ebs" "phoenix-capture-flag-ubuntu-amd64" {
   ami_name                  = "phoenix-capture-flag"
-  ami_description           = "phoenix-capture-flag: minimal Ubuntu 22 image (because Azure has insufficient caught up)."
+  ami_description           = "phoenix-capture-flag: minimal Ubuntu 22 image"
   ami_virtualization_type   = "hvm"
   access_key                = var.aws_access_key_id
   associate_public_ip_address = true
@@ -62,18 +62,18 @@ source "amazon-ebs" "phoenix-capture-flag-ubuntu-amd64" {
 }
 
 source "azure-arm" "phoenix-capture-flag-ubuntu-amd64" {
-  subscription_id                   = var.arm_subscription_id
   client_id                         = var.arm_client_id
   client_secret                     = var.arm_client_secret
-  tenant_id                         = var.arm_tenant_id
-  managed_image_name                = "phoenix-capture-flag"
-  managed_image_resource_group_name = var.azure_resource_group
-  location                          = "UK South"
-  vm_size                           = "Standard_DS1_v2"
-  os_type                           = "Linux"
   image_publisher                   = "Canonical"
   image_offer                       = "0001-com-ubuntu-server-jammy"
   image_sku                         = "22_04-lts"
+  location                          = "UK South"
+  managed_image_name                = "phoenix-capture-flag"
+  managed_image_resource_group_name = var.azure_resource_group
+  os_type                           = "Linux"
+  subscription_id                   = var.arm_subscription_id
+  tenant_id                         = var.arm_tenant_id
+  vm_size                           = "Standard_DS1_v2"
 }
 
 build {
@@ -102,8 +102,8 @@ build {
   }
 
   provisioner "file" {
-    destination = "/tmp/multi-cloud-setup.sh"
     source      = "multi-cloud-setup.sh"
+    destination = "/tmp/multi-cloud-setup.sh"
   }
 
   provisioner "file" {

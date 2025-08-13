@@ -285,7 +285,8 @@ function build_cloud_images {
     log "ERROR" "${FUNCNAME[0]}" "No Packer manifest created. Bye."
   fi
   packer init -upgrade . && \
-  packer build -var=aws_access_key_id="${AWS_ACCESS_KEY_ID}" \
+  packer build -force \
+               -var=aws_access_key_id="${AWS_ACCESS_KEY_ID}" \
                -var=aws_secret_access_key="${AWS_SECRET_ACCESS_KEY}" \
                -var=aws_default_region="${AWS_DEFAULT_REGION}" \
                -var=ami="${AWS_BASE_IMAGE_AMI}" \
