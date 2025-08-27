@@ -1,11 +1,31 @@
 #!/usr/bin/env bash
 #
-## run.sh base creation
+## hackathon.sh capture the flag
 ## 2025-07-30::11:26:30 ml4
 #
 ## this script should cater for the necessary complexity required for this repo.
 #
 ##################################################################################################################################################
+
+## colors for appropriate output
+#
+red="\033[1;31m"
+green="\033[1;32m"
+yellow="\033[1;33m"
+blue="\033[1;34m"
+purple="\033[1;35m"
+cyan="\033[1;36m"
+white="\033[1;37m"
+reset="\033[0m"
+
+##################################################################################################################################################
+## usage
+#
+function usage {
+  echo -e "${cyan}usage:${reset}"
+  echo -e "${cyan}hackathon.sh [prep|run|down]${reset}"
+  exit 1
+}
 
 ##################################################################################################################################################
 ## setup
@@ -257,20 +277,33 @@ function setup_environment_for_cloud_build {
 }
 
 ##################################################################################################################################################
+## run_tf
+#
+function run_tf {
+  terraform init
+  rCode=${?}
+  if [[ ${rCode} != 0 ]]
+  then
+    log "ERROR" "${FUNCNAME[0]}" "${red}terraform init failed${reset}"
+    exit ${rCode}
+  else
+    log "INFO" "${FUNCNAME[0]}" "${green}Running terraform apply in |${PWD}|${reset}"
+    terraform apply -auto-approve
+    rCode=${?}
+    if [[ ${rCode} != 0 ]]
+    then
+      log "ERROR" "${FUNCNAME[0]}" "${red}terraform apply failed${reset}"
+      exit ${rCode}
+    fi
+  fi
+}
+
+##################################################################################################################################################
 ## log
 ## pipeline-relevant log output
 ## Usage: log "ERROR" "${FUNCNAME[0]}" "Wrong number of arguments to log_run"
 #
 function log {
-  red="\033[1;31m"
-  green="\033[1;32m"
-  yellow="\033[1;33m"
-  blue="\033[1;34m"
-  purple="\033[1;35m"
-  cyan="\033[1;36m"
-  white="\033[1;37m"
-  reset="\033[0m"
-
   local -r level="${1}"
   if [ "${level}" == "INFO" ]
   then
@@ -353,24 +386,206 @@ function build_cloud_images {
 ## main
 #
 function main {
-  export region=${AWS_DEFAULT_REGION}
-  setup_environment_for_cloud_build
-
-  ## solicit username and update the paths in the packer build file
+  ## accept cli args to guide functions
   #
-  this_user=$(id -p | head -1 | awk '{print $NF}')
-  pushd packer &>/dev/null
-  log  "INFO" "${FUNCNAME[0]}" "sed \"s/%%USERNAME%%/${this_user}/g\" phoenix-capture-flag.pkr.hcl.tmpl > phoenix-capture-flag.pkr.hcl"
-  sed "s/%%USERNAME%%/${this_user}/g" phoenix-capture-flag.pkr.hcl.tmpl > phoenix-capture-flag.pkr.hcl
-  if [[ ! -f "phoenix-capture-flag.pkr.hcl" ]]
+  arg=${1}
+  if [[ -z ${arg} ]]
   then
-    log "ERROR" "${FUNCNAME[0]}" "Packer manifest has not been generated. Bye."
+    usage
   fi
-  popd &>/dev/null
 
-  build_cloud_images #&& rm -f packer/phoenix-capture-flag.pkr.hcl
-  log "INFO" "${FUNCNAME[0]}" "Finished"
-  unset AWS_BUILD_VPC AWS_BUILD_SUBNET ARM_BUILD_VNET ARM_BUILD_SUBNET
+  if [[ "${arg}" == "prep" ]]
+  then
+    ## Set up the hackathon elements which are required outside of the instruqt environment such as GitHub and HCPT elements.
+    ## Do this before the hackathon day.
+    #
+    ## First, in order to work with HCPT, the user needs a valid HCPT token
+    #
+    if [[ ! -r ${HOME}/.terraform.d/credentials.tfrc.json ]]
+    then
+      log "ERROR" "${FUNCNAME[0]}" "${yellow}Ensure you have done a terraform login before continuing.${reset}"
+      terraform login
+    fi
+    hcp_token=$(jq -r '.credentials["app.terraform.io"].token' ${HOME}/.terraform.d/credentials.tfrc.json)
+
+    ## Test the token by hitting the HCP API
+    response_code=$(curl -s -o /dev/null -w "%{http_code}" \
+      -H "Authorization: Bearer ${hcp_token}" \
+      https://app.terraform.io/api/v2/organizations)
+
+    if [[ "${response_code}" -eq 200 ]]
+    then
+      log "INFO" "${FUNCNAME[0]}" "${green}Valid HCP token.${reset}"
+    else
+      log "ERROR" "${FUNCNAME[0]}" "${green}Invalid or expired HCP token. Please fix this or run terraform login and retry${reset}"
+      exit 1
+    fi
+
+    cd preparation/terraform
+    rCode=${?}
+    if [[ ${rCode} != 0 ]]
+    then
+      log "ERROR" "${FUNCNAME[0]}" "${red}Cannot cd to preparation/terraform${reset}"
+      exit ${rCode}
+    fi
+
+    ## prompt for email to configure TFE organizations
+    #
+    # while true
+    # do
+    #   read -p "Enter the email needed to create HCPT organizations> " email
+    #   if [[ "${email}" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]
+    #   then
+    #     break
+    #   else
+    #     echo "Invalid email format, please try again."
+    #   fi
+    # done
+
+    ## ask for which teams and clouds
+    #
+    declare -A teams
+    while true
+    do
+      read -p "Paste in customer GitHub/HCPT organization name (enter to continue)> " team_name
+      if [[ -z ${team_name} ]]
+      then
+        break
+      fi
+      team_name=$(echo ${team_name} | sed 's/ //g')
+      org_test=$(curl -s https://api.github.com/orgs/${team_name} | jq -r '.login')
+      if [[ ${org_test} == "null" ]]
+      then
+        log "ERROR" "${FUNCNAME[0]}" "${red}GitHub has no such organization. ${reset}"
+        exit 1
+      fi
+
+      echo "Select CSP for team ${team_name}:"
+      select provider in AWS Azure GCP
+      do
+        case ${provider} in
+          AWS|Azure|GCP)
+            teams[${team_name}]=${provider}
+            break
+            ;;
+          *)
+            echo "Invalid selection"
+            exit 1
+            ;;
+        esac
+      done
+    done
+
+    ## Iterate the teams creating directories, adding terraform code and running terraform in the respective directories (GitHub provider instances per team).
+    #
+    for team in ${!teams[@]}
+    do
+      if [[ -d ${team} ]]
+      then
+        log "ERROR" "${FUNCNAME[0]}" "${red}Setup directory ${team} already exists. If you need to rerun, please manually clear the directory first.${reset}"
+        exit 1
+      fi
+
+      log "INFO" "${FUNCNAME[0]}" "${cyan}Writing Terraform code to setup GitHub repositories for team |${purple}${team}${reset}| for CSP |${green}${teams[${team}]}${reset}|"
+      mkdir -p "${team}"
+      rCode=${?}
+      if [[ ${rCode} > 0 ]]
+      then
+        log "ERROR" "${FUNCNAME[0]}" "${red}Failed to mkdir ${team}${reset}"
+        exit ${rCode}
+      else
+        cd "${team}"
+        rCode=${?}
+        if [[ ${rCode} > 0 ]]
+        then
+          log "ERROR" "${FUNCNAME[0]}" "${red}Failed to cd to ${team}${reset}"
+          exit ${rCode}
+        fi
+      fi
+
+      cat > "${team}.tf" <<EOF
+## tf hackathon
+## Set up objects required by the hackathon day which fall outside of the instruqt
+## environment, and are thus not destroyed when the environment expires.
+## Therefore, a terraform destroy run is required to clean up.
+#
+terraform {
+  required_version = ">= 1.10.0"
+  required_providers {
+    tfe = {
+      version = ">= 0.68.2"
+      source  = "hashicorp/tfe"
+    }
+    github = {
+      version = ">= 6.6.0"
+      source  = "integrations/github"
+    }
+  }
+}
+
+provider "github" {
+  owner = "${team}"
+}
+
+provider "tfe" {}
+
+resource "github_repository" "main" {
+  name               = "platform-team"
+  description        = "Repository which backs the top-level platform team HCP Terraform workspace"
+  gitignore_template = "Terraform"
+  visibility         = "private"
+  has_issues         = false
+  has_projects       = false
+}
+EOF
+
+      run_tf
+
+      cd ..
+      rCode=${?}
+      if [[ ${rCode} > 0 ]]
+      then
+        log "ERROR" "${FUNCNAME[0]}" "${red}Failed to cd .. from |${PWD}|${reset}"
+        exit ${rCode}
+      fi
+    done
+  fi
+exit 0
+
+  # elif [[ "${arg}" == "run" ]]
+  #   ## Run the hackathon elements into the instruqt environment (deploy VPC/VNet with terraform then use packer to insert flag machine images).
+  #   ## Do this at the start of the hackathon.
+  #   #
+  # elif [[ "${arg}" == "down" ]]
+  #   ## drop the hackathon elements outside of the instruqt environment (undo prep).
+  #   ## Run this after the hackathon has formally completed.
+  #   #
+  # else
+  #   usage
+  # fi
+
+
+
+
+
+  # export region=${AWS_DEFAULT_REGION}
+  # setup_environment_for_cloud_build
+
+  # ## solicit username and update the paths in the packer build file
+  # #
+  # this_user=$(id -p | head -1 | awk '{print $NF}')
+  # pushd packer &>/dev/null
+  # log  "INFO" "${FUNCNAME[0]}" "sed \"s/%%USERNAME%%/${this_user}/g\" phoenix-capture-flag.pkr.hcl.tmpl > phoenix-capture-flag.pkr.hcl"
+  # sed "s/%%USERNAME%%/${this_user}/g" phoenix-capture-flag.pkr.hcl.tmpl > phoenix-capture-flag.pkr.hcl
+  # if [[ ! -f "phoenix-capture-flag.pkr.hcl" ]]
+  # then
+  #   log "ERROR" "${FUNCNAME[0]}" "Packer manifest has not been generated. Bye."
+  # fi
+  # popd &>/dev/null
+
+  # build_cloud_images #&& rm -f packer/phoenix-capture-flag.pkr.hcl
+  # log "INFO" "${FUNCNAME[0]}" "Finished"
+  # unset AWS_BUILD_VPC AWS_BUILD_SUBNET ARM_BUILD_VNET ARM_BUILD_SUBNET
 }
 
 main "$@"

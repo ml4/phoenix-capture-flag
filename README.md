@@ -1,6 +1,32 @@
-# phoenix-capture-flag
+# tf-capture-the-flag
 
-This repo houses the code to manage an ephemeral multi-cloud environment into which is deployed objects relating to an HCPT on-site hackathon.
+This repo houses the code to manage an ephemeral multi-cloud capture-the-flag-style hackathon environment.
+Use this to deploy the resources needed to boot a hackathon day attended by customer staff who want to learn more about HCP Terraform.
+The form is
+- How to break down monolithic, CE Terraform code into child modules backed by GitHub repos
+- Deploy instances of these child modules (i.e. a network module and an compute module) using a workspace-based HCP Terraform-located root module.
+- Login to the compute instance through the deployed bastion and call out the contents of /etc/flag (which is baked into the machine image in the ephemeral cloud account on the day)
+
+## Init
+0. Create the names of the two teams. The names must be unique across both GitHub and HCPT in order for the automation to succeed. Recommendation: 'hashicorp-<customer_name>-team1'
+1. Create free tier GitHub organizations for each competing team using the _required clickops_ [here](https://github.com/organizations/plan) - Select 'My personal account' as the owner and add your staff collaborators.
+2. Create personal HCPT organizations for each competing team using the _required clickops_ [here](https://app.terraform.io/app/organizations/new) - Do this because although a TFE provider resource exists, recently deleted orgs prevent recreation within the same period of time. See https://hashicorp.slack.com/archives/CPC3J8B8C/p1756304277156169 for more.
+2. Run `hackathon.sh prep` which interactively prompts for each team name and the CSP they use.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 - Terraform code to deploy non-default VPC/VNet in AWS and Azure account/subscription deployed by the Instruqt step (clickops)
 - A Packer build which takes a CSP market place image in each case, adds packer/flag to /etc in the image to capture and writes a [phoenix image](https://martinfowler.com/bliki/PhoenixServer.html) to the account/subscription.
 - GCP not supported at this time.
