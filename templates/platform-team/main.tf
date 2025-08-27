@@ -14,7 +14,6 @@ module "workspace_dev" {
   project_id     = module.project.tp-tp-main-id
   auto_apply     = true
   variable_sets  = []
-
 }
 
 module "workspace_test" {
@@ -25,7 +24,6 @@ module "workspace_test" {
   project_id     = module.project.tp-tp-main-id
   auto_apply     = true
   variable_sets  = []
-
 }
 
 module "workspace_prod" {

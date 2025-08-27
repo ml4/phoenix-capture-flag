@@ -421,14 +421,6 @@ function main {
       exit 1
     fi
 
-    cd preparation/terraform
-    rCode=${?}
-    if [[ ${rCode} != 0 ]]
-    then
-      log "ERROR" "${FUNCNAME[0]}" "${red}Cannot cd to preparation/terraform${reset}"
-      exit ${rCode}
-    fi
-
     ## prompt for email to configure TFE organizations
     #
     # while true
@@ -487,23 +479,35 @@ function main {
       fi
 
       log "INFO" "${FUNCNAME[0]}" "${cyan}Writing Terraform code to setup GitHub repositories for team |${purple}${team}${reset}| for CSP |${green}${teams[${team}]}${reset}|"
-      mkdir -p "${team}"
+
+      ## create platform-team area to sed into
+      #
+      mkdir -p "preparation/${team}/platform-team"
       rCode=${?}
       if [[ ${rCode} > 0 ]]
       then
-        log "ERROR" "${FUNCNAME[0]}" "${red}Failed to mkdir ${team}${reset}"
+        log "ERROR" "${FUNCNAME[0]}" "${red}Failed to mkdir ${team}/platform-team${reset}"
         exit ${rCode}
-      else
-        cd "${team}"
-        rCode=${?}
-        if [[ ${rCode} > 0 ]]
-        then
-          log "ERROR" "${FUNCNAME[0]}" "${red}Failed to cd to ${team}${reset}"
-          exit ${rCode}
-        fi
       fi
 
-      cat > "${team}.tf" <<EOF
+      mkdir -p "preparation/${team}/tf"
+      rCode=${?}
+      if [[ ${rCode} > 0 ]]
+      then
+        log "ERROR" "${FUNCNAME[0]}" "${red}Failed to mkdir ${team}/tf${reset}"
+        exit ${rCode}
+      fi
+
+      ## collate platform-team repo files by sedding in the team name, ready for tf-insertion into the created top-level example repo
+      #
+      sed "s/%%TEAM%%/${team}/g" templates/platform-team/main.tf      > preparation/${team}/platform-team/main.tf
+      sed "s/%%TEAM%%/${team}/g" templates/platform-team/terraform.tf > preparation/${team}/platform-team/terraform.tf
+      sed "s/%%TEAM%%/${team}/g" templates/platform-team/README.md    > preparation/${team}/platform-team/README.md
+      cp templates/platform-team/variables.tf                           preparation/${team}/platform-team/variables.tf
+
+      ## We need space to create a tf config to run the above files into GH.
+      #
+      cat > "preparation/${team}/tf/${team}.tf" <<EOF
 ## tf hackathon
 ## Set up objects required by the hackathon day which fall outside of the instruqt
 ## environment, and are thus not destroyed when the environment expires.
@@ -527,8 +531,6 @@ provider "github" {
   owner = "${team}"
 }
 
-provider "tfe" {}
-
 resource "github_repository" "main" {
   name               = "platform-team"
   description        = "Repository which backs the top-level platform team HCP Terraform workspace"
@@ -537,15 +539,55 @@ resource "github_repository" "main" {
   has_issues         = false
   has_projects       = false
 }
+
+resource "github_repository_file" "platform_team_readme_md" {
+  repository          = github_repository.main.name
+  branch              = "main"
+  file                = "README.md"
+  content             = file(pathexpand("../platform-team/README.md"))
+  overwrite_on_create = true
+}
+
+resource "github_repository_file" "platform_team_main_tf" {
+  repository          = github_repository.main.name
+  branch              = "main"
+  file                = "main.tf"
+  content             = file(pathexpand("../platform-team/main.tf"))
+  overwrite_on_create = true
+}
+
+resource "github_repository_file" "platform_team_variables_tf" {
+  repository          = github_repository.main.name
+  branch              = "main"
+  file                = "variables.tf"
+  content             = file(pathexpand("../platform-team/variables.tf"))
+  overwrite_on_create = true
+}
+
+resource "github_repository_file" "platform_team_terraform_tf" {
+  repository          = github_repository.main.name
+  branch              = "main"
+  file                = "terraform.tf"
+  content             = file(pathexpand("../platform-team/terraform.tf"))
+  overwrite_on_create = true
+}
 EOF
 
-      run_tf
-
-      cd ..
+      pushd "preparation/${team}/tf" &>/dev/null
       rCode=${?}
       if [[ ${rCode} > 0 ]]
       then
-        log "ERROR" "${FUNCNAME[0]}" "${red}Failed to cd .. from |${PWD}|${reset}"
+        log "ERROR" "${FUNCNAME[0]}" "${red}Failed to pushd "preparation/${team}/tf" &>/dev/null${reset}"
+        exit ${rCode}
+      fi
+
+      run_tf
+
+      popd &>/dev/null
+      rCode=${?}
+      if [[ ${rCode} > 0 ]]
+      then
+        log "ERROR" "${FUNCNAME[0]}" "${red}Failed to popd &>/dev/null${reset}"
         exit ${rCode}
       fi
     done
