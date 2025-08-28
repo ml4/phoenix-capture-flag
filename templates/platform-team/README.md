@@ -43,7 +43,7 @@ This configuration expects:
 
 This repository uses the following **child modules** hosted in the private registry:
 
-- [`project`](https://app.terraform.io/app/%%TEAM%%/registry/modules/project/tfe)
-- [`workspaces`](https://app.terraform.io/app/%%TEAM%%/registry/modules/workspaces/tfe)
+- [`project`](https://app.terraform.io/app/%%TEAM%%/registry/modules/private/%%TEAM%%/project/tfe)
+- [`workspaces`](https://app.terraform.io/app/%%TEAM%%/registry/modules/private/%%TEAM%%/workspaces/tfe)
 
 Versions are pinned, per best practice, for stability.

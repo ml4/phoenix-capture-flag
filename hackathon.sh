@@ -415,11 +415,31 @@ function main {
 
     if [[ "${response_code}" -eq 200 ]]
     then
-      log "INFO" "${FUNCNAME[0]}" "${green}Valid HCP token.${reset}"
+      log "INFO" "${FUNCNAME[0]}" "${green}Found valid HCP token${reset}"
     else
       log "ERROR" "${FUNCNAME[0]}" "${green}Invalid or expired HCP token. Please fix this or run terraform login and retry${reset}"
       exit 1
     fi
+
+    ## Attempt to detect GITHUB_TOKEN or prompt - needed for oauth setup so that PMR mod publication is possible
+    #
+    gh_token=
+    if [[ -s "${GITHUB_TOKEN}" ]]
+    then
+      log "INFO" "${FUNCNAME[0]}" "${cyan}GITHUB_TOKEN already instantiated. Reuse for HCPT PMR/GitHub oauth?${reset}"
+    fi
+
+    while [[ -z "${gh_token}" ]]
+    do
+      log "INFO" "${FUNCNAME[0]}" "${green}Finding GitHub PAT${reset}"
+      read -sp "Enter GitHub PAT [${GITHUB_TOKEN:0:10}*****]> " gh_token
+      if [[ -z "${gh_token}" ]]
+      then
+        gh_token=${GITHUB_TOKEN}
+      fi
+      echo
+      log "INFO" "${FUNCNAME[0]}" "${green}Using ${GITHUB_TOKEN:0:10}*****${reset}"
+    done
 
     ## prompt for email to configure TFE organizations
     #
@@ -437,9 +457,10 @@ function main {
     ## ask for which teams and clouds
     #
     declare -A teams
+    log "INFO" "${FUNCNAME[0]}" "${green}Getting GitHub/HCPT organization names for each customer team${reset}"
     while true
     do
-      read -p "Paste in customer GitHub/HCPT organization name (enter to continue)> " team_name
+      read -p "Enter each customer GitHub/HCPT org name (blank line to finish)> " team_name
       if [[ -z ${team_name} ]]
       then
         break
@@ -480,23 +501,18 @@ function main {
 
       log "INFO" "${FUNCNAME[0]}" "${cyan}Writing Terraform code to setup GitHub repositories for team |${purple}${team}${reset}| for CSP |${green}${teams[${team}]}${reset}|"
 
-      ## create platform-team area to sed into
+      ## create platform-team area to sed into, and template project and workspace child mod repo files
       #
-      mkdir -p "preparation/${team}/platform-team"
-      rCode=${?}
-      if [[ ${rCode} > 0 ]]
-      then
-        log "ERROR" "${FUNCNAME[0]}" "${red}Failed to mkdir ${team}/platform-team${reset}"
-        exit ${rCode}
-      fi
-
-      mkdir -p "preparation/${team}/tf"
-      rCode=${?}
-      if [[ ${rCode} > 0 ]]
-      then
-        log "ERROR" "${FUNCNAME[0]}" "${red}Failed to mkdir ${team}/tf${reset}"
-        exit ${rCode}
-      fi
+      for dir in platform-team terraform-tfe-project terraform-tfe-workspaces
+      do
+        mkdir -p "preparation/${team}/${dir}"
+        rCode=${?}
+        if [[ ${rCode} > 0 ]]
+        then
+          log "ERROR" "${FUNCNAME[0]}" "${red}Failed to mkdir ${team}/${dir}${reset}"
+          exit ${rCode}
+        fi
+      done
 
       ## collate platform-team repo files by sedding in the team name, ready for tf-insertion into the created top-level example repo
       #
@@ -504,6 +520,29 @@ function main {
       sed "s/%%TEAM%%/${team}/g" templates/platform-team/terraform.tf > preparation/${team}/platform-team/terraform.tf
       sed "s/%%TEAM%%/${team}/g" templates/platform-team/README.md    > preparation/${team}/platform-team/README.md
       cp templates/platform-team/variables.tf                           preparation/${team}/platform-team/variables.tf
+
+      ## collate the project and workspaces child module repo files needed to create child mod in the respective team PMR
+      #
+      for mod in workspaces project
+      do
+        cp templates/terraform-tfe-${mod}/* preparation/${team}/terraform-tfe-${mod}
+        rCode=${?}
+        if [[ ${rCode} > 0 ]]
+        then
+          log "ERROR" "${FUNCNAME[0]}" "${red}Failed to cp templates/terraform-tfe-${mod}/* preparation/${team}/terraform-tfe-${mod}${reset}"
+          exit ${rCode}
+        fi
+      done
+
+      ## create directory to hold the terraform code we run to deploy/populate the platform-team top level repo plus the two child module repos
+      #
+      mkdir -p "preparation/${team}/tf"
+      rCode=${?}
+      if [[ ${rCode} > 0 ]]
+      then
+        log "ERROR" "${FUNCNAME[0]}" "${red}Failed to mkdir ${team}/tf${reset}"
+        exit ${rCode}
+      fi
 
       ## We need space to create a tf config to run the above files into GH.
       #
@@ -527,10 +566,13 @@ terraform {
   }
 }
 
+provider "tfe" {}
 provider "github" {
   owner = "${team}"
 }
 
+## Platform Team top level repo/workspace and population
+#
 resource "github_repository" "main" {
   name               = "platform-team"
   description        = "Repository which backs the top-level platform team HCP Terraform workspace"
@@ -570,6 +612,162 @@ resource "github_repository_file" "platform_team_terraform_tf" {
   file                = "terraform.tf"
   content             = file(pathexpand("../platform-team/terraform.tf"))
   overwrite_on_create = true
+}
+
+## HCPT/TFE Project child module repo
+#
+resource "github_repository" "project_child_module" {
+  name               = "terraform-tfe-project"
+  description        = "Repository which backs the child module which deploys an HCPT/TFE project"
+  gitignore_template = "Terraform"
+  visibility         = "private"
+  has_issues         = false
+  has_projects       = false
+}
+
+resource "github_repository_file" "project_child_module_readme_md" {
+  repository          = github_repository.project_child_module.name
+  branch              = "main"
+  file                = "README.md"
+  content             = file(pathexpand("../terraform-tfe-project/README.md"))
+  overwrite_on_create = true
+}
+
+resource "github_repository_file" "project_child_module_main_tf" {
+  repository          = github_repository.project_child_module.name
+  branch              = "main"
+  file                = "main.tf"
+  content             = file(pathexpand("../terraform-tfe-project/main.tf"))
+  overwrite_on_create = true
+}
+
+resource "github_repository_file" "project_child_module_variables_tf" {
+  repository          = github_repository.project_child_module.name
+  branch              = "main"
+  file                = "variables.tf"
+  content             = file(pathexpand("../terraform-tfe-project/variables.tf"))
+  overwrite_on_create = true
+}
+
+resource "github_repository_file" "project_child_module_outputs_tf" {
+  repository          = github_repository.project_child_module.name
+  branch              = "main"
+  file                = "outputs.tf"
+  content             = file(pathexpand("../terraform-tfe-project/outputs.tf"))
+  overwrite_on_create = true
+}
+
+resource "github_release" "project_child_module" {
+  repository = github_repository.project_child_module.name
+  tag_name   = "v1.0.0"
+  draft      = false
+  prerelease = false
+  depends_on = [
+    github_repository.project_child_module,
+    github_repository_file.project_child_module_readme_md,
+    github_repository_file.project_child_module_main_tf,
+    github_repository_file.project_child_module_variables_tf,
+    github_repository_file.project_child_module_outputs_tf
+  ]
+}
+
+## HCPT/TFE Workspaces child module repo
+#
+resource "github_repository" "workspaces_child_module" {
+  name               = "terraform-tfe-workspaces"
+  description        = "Repository which backs the child module which deploys HCPT/TFE workspaces"
+  gitignore_template = "Terraform"
+  visibility         = "private"
+  has_issues         = false
+  has_projects       = false
+}
+
+resource "github_repository_file" "workspaces_child_module_readme_md" {
+  repository          = github_repository.workspaces_child_module.name
+  branch              = "main"
+  file                = "README.md"
+  content             = file(pathexpand("../terraform-tfe-workspaces/README.md"))
+  overwrite_on_create = true
+}
+
+resource "github_repository_file" "workspaces_child_module_main_tf" {
+  repository          = github_repository.workspaces_child_module.name
+  branch              = "main"
+  file                = "main.tf"
+  content             = file(pathexpand("../terraform-tfe-workspaces/main.tf"))
+  overwrite_on_create = true
+}
+
+resource "github_repository_file" "workspaces_child_module_variables_tf" {
+  repository          = github_repository.workspaces_child_module.name
+  branch              = "main"
+  file                = "variables.tf"
+  content             = file(pathexpand("../terraform-tfe-workspaces/variables.tf"))
+  overwrite_on_create = true
+}
+
+resource "github_repository_file" "workspaces_child_module_outputs_tf" {
+  repository          = github_repository.workspaces_child_module.name
+  branch              = "main"
+  file                = "outputs.tf"
+  content             = file(pathexpand("../terraform-tfe-workspaces/outputs.tf"))
+  overwrite_on_create = true
+}
+
+resource "github_release" "workspaces_child_module" {
+  repository = github_repository.workspaces_child_module.name
+  tag_name   = "v1.0.0"
+  draft      = false
+  prerelease = false
+  depends_on = [
+    github_repository.workspaces_child_module,
+    github_repository_file.workspaces_child_module_readme_md,
+    github_repository_file.workspaces_child_module_main_tf,
+    github_repository_file.workspaces_child_module_variables_tf,
+    github_repository_file.workspaces_child_module_outputs_tf
+  ]
+}
+
+## HCPT/TFE oauth connection from HCPT/TFE to GitHub for the purposes of publishing modules into the PMR
+#
+resource "tfe_oauth_client" "main" {
+  organization     = "${team}"
+  api_url          = "https://api.github.com"
+  http_url         = "https://github.com"
+  oauth_token      = "${gh_token}"
+  service_provider = "github"
+}
+
+## HCPT/TFE private module registry entry
+#
+resource "tfe_registry_module" "project" {
+  vcs_repo {
+    display_identifier = "${team}/terraform-tfe-project"
+    identifier         = "${team}/terraform-tfe-project"
+    oauth_token_id     = tfe_oauth_client.main.oauth_token_id
+  }
+  depends_on = [
+    github_repository.project_child_module,
+    github_repository_file.project_child_module_readme_md,
+    github_repository_file.project_child_module_main_tf,
+    github_repository_file.project_child_module_variables_tf,
+    github_repository_file.project_child_module_outputs_tf
+  ]
+}
+
+resource "tfe_registry_module" "workspaces" {
+  vcs_repo {
+    display_identifier = "${team}/terraform-tfe-workspaces"
+    identifier         = "${team}/terraform-tfe-workspaces"
+    oauth_token_id     = tfe_oauth_client.main.oauth_token_id
+  }
+  depends_on = [
+    github_repository.workspaces_child_module,
+    github_repository_file.workspaces_child_module_readme_md,
+    github_repository_file.workspaces_child_module_main_tf,
+    github_repository_file.workspaces_child_module_variables_tf,
+    github_repository_file.workspaces_child_module_outputs_tf
+  ]
 }
 EOF
 
