@@ -795,20 +795,38 @@ EOF
         exit ${rCode}
       fi
     done
-  fi
-exit 0
+  # fi
 
-  # elif [[ "${arg}" == "run" ]]
-  #   ## Run the hackathon elements into the instruqt environment (deploy VPC/VNet with terraform then use packer to insert flag machine images).
-  #   ## Do this at the start of the hackathon.
-  #   #
+
+  elif [[ "${arg}" == "run" ]]
+  then
+    ## Run the hackathon elements into the instruqt environment (deploy VPC/VNet with terraform then use packer to insert flag machine images).
+    ## Do this at the start of the hackathon.
+    #
+    export region=${AWS_DEFAULT_REGION}
+    setup_environment_for_cloud_build
+    this_user=$(id -p | head -1 | awk '{print $NF}')
+    pushd packer &>/dev/null
+    log "INFO" "${FUNCNAME[0]}" "sed \"s/%%USERNAME%%/${this_user}/g\" phoenix-capture-flag.pkr.hcl.tmpl > phoenix-capture-flag.pkr.hcl"
+    sed "s/%%USERNAME%%/${this_user}/g" phoenix-capture-flag.pkr.hcl.tmpl > phoenix-capture-flag.pkr.hcl
+    if [[ ! -f "phoenix-capture-flag.pkr.hcl" ]]
+    then
+      log "ERROR" "${FUNCNAME[0]}" "Packer manifest has not been generated. Bye."
+      exit 1
+    fi
+    popd &>/dev/null
+    build_cloud_images && rm -f packer/phoenix-capture-flag.pkr.hcl
+    log "INFO" "${FUNCNAME[0]}" "Finished"
+    unset AWS_BUILD_VPC AWS_BUILD_SUBNET ARM_BUILD_VNET ARM_BUILD_SUBNET
+
   # elif [[ "${arg}" == "down" ]]
   #   ## drop the hackathon elements outside of the instruqt environment (undo prep).
   #   ## Run this after the hackathon has formally completed.
   #   #
   # else
   #   usage
-  # fi
+  fi
+  exit 0
 
 
 
