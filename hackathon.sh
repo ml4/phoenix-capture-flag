@@ -807,9 +807,8 @@ EOF
     setup_environment_for_cloud_build
     this_user=$(id -p | head -1 | awk '{print $NF}')
     pushd packer &>/dev/null
-    log "INFO" "${FUNCNAME[0]}" "sed \"s/%%USERNAME%%/${this_user}/g\" phoenix-capture-flag.pkr.hcl.tmpl > phoenix-capture-flag.pkr.hcl"
-    sed "s/%%USERNAME%%/${this_user}/g" phoenix-capture-flag.pkr.hcl.tmpl > phoenix-capture-flag.pkr.hcl
-    if [[ ! -f "phoenix-capture-flag.pkr.hcl" ]]
+    log "INFO" "${FUNCNAME[0]}" "sed \"s/%%USERNAME%%/${this_user}/g\" ../../on-the-day/packer/phoenix-capture-flag.pkr.hcl.tmpl > phoenix-capture-flag.pkr.hcl"
+    sed "s/%%USERNAME%%/${this_user}/g" ../../on-the-day/packer/phoenix-capture-flag.pkr.hcl.tmpl > phoenix-capture-flag.pkr.hcl    if [[ ! -f "phoenix-capture-flag.pkr.hcl" ]]
     then
       log "ERROR" "${FUNCNAME[0]}" "Packer manifest has not been generated. Bye."
       exit 1
