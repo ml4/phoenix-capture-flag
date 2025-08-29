@@ -454,9 +454,10 @@ function main {
     #   fi
     # done
 
-    ## ask for which teams and clouds
+    ## ask for which teams
     #
-    declare -A teams
+    # declare -A teams
+    teams=()
     log "INFO" "${FUNCNAME[0]}" "${green}Getting GitHub/HCPT organization names for each customer team${reset}"
     while true
     do
@@ -473,25 +474,28 @@ function main {
         exit 1
       fi
 
-      echo "Select CSP for team ${team_name}:"
-      select provider in AWS Azure GCP
-      do
-        case ${provider} in
-          AWS|Azure|GCP)
-            teams[${team_name}]=${provider}
-            break
-            ;;
-          *)
-            echo "Invalid selection"
-            exit 1
-            ;;
-        esac
-      done
+      # echo "Select CSP for team ${team_name}:"
+      # select provider in AWS Azure GCP
+      # do
+      #   case ${provider} in
+      #     AWS|Azure|GCP)
+      #       teams[${team_name}]=${provider}
+      #       break
+      #       ;;
+      #     *)
+      #       echo "Invalid selection"
+      #       exit 1
+      #       ;;
+      #   esac
+      # done
+
+      teams+=("${team_name}")
     done
 
     ## Iterate the teams creating directories, adding terraform code and running terraform in the respective directories (GitHub provider instances per team).
     #
-    for team in ${!teams[@]}
+    # for team in ${!teams[@]}
+    for team in "${teams[@]}"
     do
       if [[ -d ${team} ]]
       then
@@ -499,7 +503,8 @@ function main {
         exit 1
       fi
 
-      log "INFO" "${FUNCNAME[0]}" "${cyan}Writing Terraform code to setup GitHub repositories for team |${purple}${team}${reset}| for CSP |${green}${teams[${team}]}${reset}|"
+      # log "INFO" "${FUNCNAME[0]}" "${cyan}Writing Terraform code to setup GitHub repositories for team |${purple}${team}${reset}| for CSP |${green}${teams[${team}]}${reset}|"
+      log "INFO" "${FUNCNAME[0]}" "${cyan}Writing Terraform code to setup GitHub repositories for team |${purple}${team}${reset}|"
 
       ## create platform-team area to sed into, and template project and workspace child mod repo files
       #
@@ -519,6 +524,7 @@ function main {
       sed "s/%%TEAM%%/${team}/g" templates/platform-team/main.tf      > preparation/${team}/platform-team/main.tf
       sed "s/%%TEAM%%/${team}/g" templates/platform-team/terraform.tf > preparation/${team}/platform-team/terraform.tf
       sed "s/%%TEAM%%/${team}/g" templates/platform-team/README.md    > preparation/${team}/platform-team/README.md
+      sed "s/%%TEAM%%/${team}/g" templates/platform-team/terraform.auto.tfvars    > preparation/${team}/platform-team/terraform.auto.tfvars
       cp templates/platform-team/variables.tf                           preparation/${team}/platform-team/variables.tf
 
       ## collate the project and workspaces child module repo files needed to create child mod in the respective team PMR
