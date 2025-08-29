@@ -519,6 +519,7 @@ function main {
       sed "s/%%TEAM%%/${team}/g" templates/platform-team/main.tf      > preparation/${team}/platform-team/main.tf
       sed "s/%%TEAM%%/${team}/g" templates/platform-team/terraform.tf > preparation/${team}/platform-team/terraform.tf
       sed "s/%%TEAM%%/${team}/g" templates/platform-team/README.md    > preparation/${team}/platform-team/README.md
+      sed "s/%%TEAM%%/${team}/g" templates/platform-team/terraform.auto.tfvars    > preparation/${team}/platform-team/terraform.auto.tfvars
       cp templates/platform-team/variables.tf                           preparation/${team}/platform-team/variables.tf
 
       ## collate the project and workspaces child module repo files needed to create child mod in the respective team PMR
