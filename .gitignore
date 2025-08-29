@@ -70,3 +70,4 @@ override.tf.json
 on-the-day/packer/phoenix-capture-flag.pkr.hcl
 preparation/**
 
+phoenix-capture-flag.pkr.hcl
