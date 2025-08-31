@@ -342,7 +342,7 @@ function build_cloud_images {
 
   ## NOTE: IF READING THROUGH, GO TO PACKER CONFIG AND THEN COME BACK HERE TO CONTINUE
   #
-  pushd packer &>/dev/null
+  pushd on-the-day/packer &>/dev/null
   log "INFO" "${FUNCNAME[0]}" "${cyan}RUNNING PACKER IN ${PWD}${reset}"
   if [[ ! -r "phoenix-capture-flag.pkr.hcl" ]]
   then
@@ -806,9 +806,10 @@ EOF
     export region=${AWS_DEFAULT_REGION}
     setup_environment_for_cloud_build
     this_user=$(id -p | head -1 | awk '{print $NF}')
-    pushd packer &>/dev/null
-    log "INFO" "${FUNCNAME[0]}" "sed \"s/%%USERNAME%%/${this_user}/g\" ../../on-the-day/packer/phoenix-capture-flag.pkr.hcl.tmpl > phoenix-capture-flag.pkr.hcl"
-    sed "s/%%USERNAME%%/${this_user}/g" ../../on-the-day/packer/phoenix-capture-flag.pkr.hcl.tmpl > phoenix-capture-flag.pkr.hcl    if [[ ! -f "phoenix-capture-flag.pkr.hcl" ]]
+    pushd on-the-day/packer &>/dev/null
+    log "INFO" "${FUNCNAME[0]}" "sed \"s/%%USERNAME%%/${this_user}/g\" phoenix-capture-flag.pkr.hcl.tmpl > phoenix-capture-flag.pkr.hcl"
+    sed "s/%%USERNAME%%/${this_user}/g" phoenix-capture-flag.pkr.hcl.tmpl > phoenix-capture-flag.pkr.hcl
+    if [[ ! -f "phoenix-capture-flag.pkr.hcl" ]]
     then
       log "ERROR" "${FUNCNAME[0]}" "Packer manifest has not been generated. Bye."
       exit 1
