@@ -108,6 +108,14 @@ function setup_environment_for_cloud_build {
     echo
     read -p "Enter BUILD_SSH_KEY (filename of SSH private key name in ~/.ssh to use for build): " build_ssh_key
     export BUILD_SSH_KEY=${build_ssh_key}
+    mkdir -p on-the-day/keys
+    if [[ -f "${HOME}/.ssh/${BUILD_SSH_KEY}.pub" ]]; then
+      cp "${HOME}/.ssh/${BUILD_SSH_KEY}.pub" "on-the-day/keys/${BUILD_SSH_KEY}.pub"
+      log "INFO" "${FUNCNAME[0]}" "Copied SSH public key from ~/.ssh/${BUILD_SSH_KEY}.pub to on-the-day/keys/${BUILD_SSH_KEY}.pub"
+    else
+      log "ERROR" "${FUNCNAME[0]}" "Public key ~/.ssh/${BUILD_SSH_KEY}.pub not found. Please ensure it exists."
+      exit 1
+    fi
   fi
 
   echo
