@@ -108,6 +108,14 @@ function setup_environment_for_cloud_build {
     echo
     read -p "Enter BUILD_SSH_KEY (filename of SSH private key name in ~/.ssh to use for build): " build_ssh_key
     export BUILD_SSH_KEY=${build_ssh_key}
+    mkdir -p on-the-day/keys
+    if [[ -f "${HOME}/.ssh/${BUILD_SSH_KEY}.pub" ]]; then
+      cp "${HOME}/.ssh/${BUILD_SSH_KEY}.pub" "on-the-day/keys/${BUILD_SSH_KEY}.pub"
+      log "INFO" "${FUNCNAME[0]}" "Copied SSH public key from ~/.ssh/${BUILD_SSH_KEY}.pub to on-the-day/keys/${BUILD_SSH_KEY}.pub"
+    else
+      log "ERROR" "${FUNCNAME[0]}" "Public key ~/.ssh/${BUILD_SSH_KEY}.pub not found. Please ensure it exists."
+      exit 1
+    fi
   fi
 
   echo
@@ -124,6 +132,7 @@ function setup_environment_for_cloud_build {
   then
     ## terraform deploy of non-default VPC for packer build VM
     #
+    pushd on-the-day >/dev/null
     if [[ -d .terraform || -r .terraform.lock.hcl || -r terraform.tfstate ]]
     then
       log "WARN" "${FUNCNAME[0]}" "Terraform objects in this directory exist already."
@@ -162,20 +171,19 @@ function setup_environment_for_cloud_build {
     fi
     #
     ## at this point, we have a non-default VPC deployed in an ephemeral AWS VPC and the equivalent VNet in an ephemeral Azure subscription
-
+    popd >/dev/null
   else
     log "INFO" "${FUNCNAME[0]}" "OK skipping Terraform deploy, going straight to Packer tasks"
-
   fi
 
   ## setup for Packer run
   #
   if [[ -z "${AWS_BUILD_SUBNET}" ]]
   then
-    export AWS_BUILD_SUBNET=$(terraform output | grep ^subnet_id | awk '{print $NF}' | tr -d \")
+    export AWS_BUILD_SUBNET=$(terraform -chdir=on-the-day output | grep ^subnet_id | awk '{print $NF}' | tr -d \")
     if [[ -z "${AWS_BUILD_SUBNET}" ]]
     then
-      log "ERROR" "${FUNCNAME[0]}" "Return code [${rCode}] from terraform output | grep ^subnet_id | awk '{print $NF}' | tr -d \" > 0"
+      log "ERROR" "${FUNCNAME[0]}" "Return code [${rCode}] from terraform -chdir=on-the-day output | grep ^subnet_id | awk '{print $NF}' | tr -d \" > 0"
     fi
   else
       log "INFO" "${FUNCNAME[0]}" "AWS_BUILD_SUBNET: ${AWS_BUILD_SUBNET}"
@@ -183,10 +191,10 @@ function setup_environment_for_cloud_build {
 
   if [[ -z "${AWS_BUILD_VPC}" ]]
   then
-    export AWS_BUILD_VPC=$(terraform output | grep ^vpc_id | awk '{print $NF}' | tr -d \")
+    export AWS_BUILD_VPC=$(terraform -chdir=on-the-day output | grep ^vpc_id | awk '{print $NF}' | tr -d \")
     if [[ -z "${AWS_BUILD_VPC}" ]]
     then
-      log "ERROR" "${FUNCNAME[0]}" "Return code [${rCode}] from terraform output | grep ^vpc_id | awk '{print $NF}' | tr -d \""
+      log "ERROR" "${FUNCNAME[0]}" "Return code [${rCode}] from terraform -chdir=on-the-day output | grep ^vpc_id | awk '{print $NF}' | tr -d \""
     fi
   else
       log "INFO" "${FUNCNAME[0]}" "AWS_BUILD_VPC: ${AWS_BUILD_VPC}"
@@ -194,10 +202,10 @@ function setup_environment_for_cloud_build {
 
   if [[ -z "${ARM_BUILD_RG}" ]]
   then
-    export ARM_BUILD_RG=$(terraform output | grep ^azure_resource_group_name | awk '{print $NF}' | tr -d \")
+    export ARM_BUILD_RG=$(terraform -chdir=on-the-day output | grep ^azure_resource_group_name | awk '{print $NF}' | tr -d \")
     if [[ -z "${ARM_BUILD_RG}" ]]
     then
-      log "ERROR" "${FUNCNAME[0]}" "Return code [${rCode}] from terraform output | grep ^azure_resource_group_name | awk '{print $NF}' | tr -d \""
+      log "ERROR" "${FUNCNAME[0]}" "Return code [${rCode}] from terraform -chdir=on-the-day output | grep ^azure_resource_group_name | awk '{print $NF}' | tr -d \""
     fi
   else
       log "INFO" "${FUNCNAME[0]}" "ARM_BUILD_RG: ${ARM_BUILD_RG}"
@@ -205,10 +213,10 @@ function setup_environment_for_cloud_build {
 
   if [[ -z "${ARM_BUILD_VNET}" ]]
   then
-    export ARM_BUILD_VNET=$(terraform output | grep ^azure_vnet_name | awk '{print $NF}' | tr -d \")
+    export ARM_BUILD_VNET=$(terraform -chdir=on-the-day output | grep ^azure_vnet_name | awk '{print $NF}' | tr -d \")
     if [[ -z "${ARM_BUILD_VNET}" ]]
     then
-      log "ERROR" "${FUNCNAME[0]}" "Return code [${rCode}] from terraform output | grep ^azure_vnet_name | awk '{print $NF}' | tr -d \""
+      log "ERROR" "${FUNCNAME[0]}" "Return code [${rCode}] from terraform -chdir=on-the-day output | grep ^azure_vnet_name | awk '{print $NF}' | tr -d \""
     fi
   else
       log "INFO" "${FUNCNAME[0]}" "ARM_BUILD_VNET: ${ARM_BUILD_VNET}"
@@ -216,10 +224,10 @@ function setup_environment_for_cloud_build {
 
   if [[ -z "${ARM_BUILD_SUBNET}" ]]
   then
-    export ARM_BUILD_SUBNET=$(terraform output | grep ^azure_subnet_id | awk '{print $NF}' | tr -d \")
+    export ARM_BUILD_SUBNET=$(terraform -chdir=on-the-day output | grep ^azure_subnet_id | awk '{print $NF}' | tr -d \")
     if [[ -z "${ARM_BUILD_SUBNET}" ]]
     then
-      log "ERROR" "${FUNCNAME[0]}" "Return code [${rCode}] from terraform output | grep ^azure_subnet_id | awk '{print $NF}' | tr -d \""
+      log "ERROR" "${FUNCNAME[0]}" "Return code [${rCode}] from terraform -chdir=on-the-day output | grep ^azure_subnet_id | awk '{print $NF}' | tr -d \""
     fi
   else
       log "INFO" "${FUNCNAME[0]}" "ARM_BUILD_SUBNET: ${ARM_BUILD_SUBNET}"
@@ -342,7 +350,7 @@ function build_cloud_images {
 
   ## NOTE: IF READING THROUGH, GO TO PACKER CONFIG AND THEN COME BACK HERE TO CONTINUE
   #
-  pushd packer &>/dev/null
+  pushd on-the-day/packer &>/dev/null
   log "INFO" "${FUNCNAME[0]}" "${cyan}RUNNING PACKER IN ${PWD}${reset}"
   if [[ ! -r "phoenix-capture-flag.pkr.hcl" ]]
   then
@@ -795,20 +803,38 @@ EOF
         exit ${rCode}
       fi
     done
-  fi
-exit 0
+  # fi
 
-  # elif [[ "${arg}" == "run" ]]
-  #   ## Run the hackathon elements into the instruqt environment (deploy VPC/VNet with terraform then use packer to insert flag machine images).
-  #   ## Do this at the start of the hackathon.
-  #   #
+
+  elif [[ "${arg}" == "run" ]]
+  then
+    ## Run the hackathon elements into the instruqt environment (deploy VPC/VNet with terraform then use packer to insert flag machine images).
+    ## Do this at the start of the hackathon.
+    #
+    export region=${AWS_DEFAULT_REGION}
+    setup_environment_for_cloud_build
+    this_user=$(id -p | head -1 | awk '{print $NF}')
+    pushd on-the-day/packer &>/dev/null
+    log "INFO" "${FUNCNAME[0]}" "sed \"s/%%USERNAME%%/${this_user}/g\" phoenix-capture-flag.pkr.hcl.tmpl > phoenix-capture-flag.pkr.hcl"
+    sed "s/%%USERNAME%%/${this_user}/g" phoenix-capture-flag.pkr.hcl.tmpl > phoenix-capture-flag.pkr.hcl
+    if [[ ! -f "phoenix-capture-flag.pkr.hcl" ]]
+    then
+      log "ERROR" "${FUNCNAME[0]}" "Packer manifest has not been generated. Bye."
+      exit 1
+    fi
+    popd &>/dev/null
+    build_cloud_images && rm -f packer/phoenix-capture-flag.pkr.hcl
+    log "INFO" "${FUNCNAME[0]}" "Finished"
+    unset AWS_BUILD_VPC AWS_BUILD_SUBNET ARM_BUILD_VNET ARM_BUILD_SUBNET
+
   # elif [[ "${arg}" == "down" ]]
   #   ## drop the hackathon elements outside of the instruqt environment (undo prep).
   #   ## Run this after the hackathon has formally completed.
   #   #
   # else
   #   usage
-  # fi
+  fi
+  exit 0
 
 
 
